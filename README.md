@@ -614,7 +614,9 @@ const config: ProxyConfig = {
 
 ## Testing
 
-The package includes comprehensive unit and integration tests with **93.18% coverage**:
+The package includes comprehensive unit and integration tests with **93.18% coverage**.
+
+For common questions and troubleshooting, see the [FAQ](./FAQ.md).
 
 ### Test Coverage Details
 - **Total Coverage**: 93.18%
@@ -745,9 +747,10 @@ See [CHANGELOG.md](./CHANGELOG.md) for a detailed history of changes to this pro
 
 If you encounter any issues or have questions, please:
 
-1. Check the [FAQ](./docs/FAQ.md)
-2. Search [existing issues](https://github.com/nadimtuhin/express-simple-proxy/issues)
-3. Create a [new issue](https://github.com/nadimtuhin/express-simple-proxy/issues/new)
+1. Check the [FAQ](./FAQ.md) - Common questions and solutions
+2. Review the [Examples](./examples/) - Practical usage examples
+3. Search [existing issues](https://github.com/nadimtuhin/express-simple-proxy/issues)
+4. Create a [new issue](https://github.com/nadimtuhin/express-simple-proxy/issues/new)
 
 ## Related Projects
 
