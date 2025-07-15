@@ -18,7 +18,7 @@ A simple, powerful, and TypeScript-ready Express.js proxy middleware with compre
 - 🔄 **Request/Response Transformation**: Transform requests and responses as needed
 - 🏷️ **URL Template Support**: Dynamic URL path parameter replacement
 - 🎯 **Query Parameter Handling**: Automatic query string building and encoding
-- 📊 **Activity Logging**: Built-in activity logging integration
+- 🔍 **Debug Support**: Built-in curl command generation for debugging
 - 🔧 **Configurable**: Extensive configuration options for timeouts, headers, and more
 - 🧪 **Well Tested**: 93.18% coverage with 76 passing tests across unit and integration suites
 - 🏗️ **CI/CD Ready**: Automated testing, building, and publishing pipeline
@@ -227,26 +227,9 @@ Error in request configuration (invalid URL, malformed data).
 ### Error Handler Flow
 
 1. **Error Occurs**: Network, HTTP, or setup error
-2. **Activity Log Cleanup**: Remove activity log if present
-3. **Error Hook Processing**: Process/modify error (if configured)
-4. **Error Handling**: Send response to client (custom or default)
-5. **Fallback**: If custom handlers fail, use default error handler
-
-## Activity Logging
-
-The proxy supports automatic activity logging integration:
-
-```typescript
-app.post('/users', (req, res, next) => {
-  req.locals = {
-    activityLog: {
-      type: 'CREATE_USER',
-      entity_id: '' // Will be populated from response
-    }
-  };
-  next();
-}, proxy('/api/users'));
-```
+2. **Error Hook Processing**: Process/modify error (if configured)
+3. **Error Handling**: Send response to client (custom or default)
+4. **Fallback**: If custom handlers fail, use default error handler
 
 ## Utility Functions
 
@@ -259,7 +242,6 @@ import {
   buildQueryString,
   createFormDataPayload,
   generateCurlCommand,
-  setEntityId,
   asyncWrapper
 } from 'express-simple-proxy';
 
@@ -270,11 +252,16 @@ const templated = replaceUrlTemplate('/users/:id', { id: 123 });
 // Query string building
 const qs = buildQueryString({ page: 1, tags: ['red', 'blue'] });
 
-// Form data creation
+// Form data creation for file uploads
 const formData = createFormDataPayload(req);
 
-// Debugging
+// Generate curl command for debugging
 const curlCommand = generateCurlCommand(payload, req);
+
+// Async wrapper for Express middleware
+const wrappedMiddleware = asyncWrapper(async (req, res, next) => {
+  // Your async middleware logic
+});
 ```
 
 ## TypeScript Support
