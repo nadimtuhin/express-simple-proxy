@@ -44,7 +44,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/health', proxy());
+      app.get('/health', proxy() as any);
 
       const response = await request(app)
         .get('/health')
@@ -63,7 +63,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/users', proxy());
+      app.get('/users', proxy() as any);
 
       const response = await request(app)
         .get('/users?page=1&limit=5&search=john')
@@ -86,7 +86,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/users/:id', proxy());
+      app.get('/users/:id', proxy() as any);
 
       const response = await request(app)
         .get('/users/1')
@@ -106,7 +106,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.post('/users', proxy());
+      app.post('/users', proxy() as any);
 
       const userData = {
         name: 'Alice Johnson',
@@ -133,7 +133,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.put('/users/:id', proxy());
+      app.put('/users/:id', proxy() as any);
 
       const userData = {
         name: 'John Updated',
@@ -159,7 +159,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.delete('/users/:id', proxy());
+      app.delete('/users/:id', proxy() as any);
 
       await request(app)
         .delete('/users/2')
@@ -175,7 +175,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.post('/upload', proxy());
+      app.post('/upload', proxy() as any);
 
       const response = await request(app)
         .post('/upload')
@@ -197,7 +197,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.post('/upload-multiple', proxy());
+      app.post('/upload-multiple', proxy() as any);
 
       const response = await request(app)
         .post('/upload-multiple')
@@ -217,7 +217,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.post('/form-data', proxy());
+      app.post('/form-data', proxy() as any);
 
       const response = await request(app)
         .post('/form-data')
@@ -248,7 +248,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/error/400', proxy());
+      app.get('/error/400', proxy() as any);
 
       const response = await request(app)
         .get('/error/400')
@@ -271,7 +271,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/error/404', proxy());
+      app.get('/error/404', proxy() as any);
 
       const response = await request(app)
         .get('/error/404')
@@ -294,7 +294,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/error/500', proxy());
+      app.get('/error/500', proxy() as any);
 
       const response = await request(app)
         .get('/error/500')
@@ -326,7 +326,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/error/400', proxy());
+      app.get('/error/400', proxy() as any);
 
       const response = await request(app)
         .get('/error/400')
@@ -354,7 +354,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/error/400', proxy());
+      app.get('/error/400', proxy() as any);
 
       await request(app)
         .get('/error/400')
@@ -387,7 +387,7 @@ describe('Proxy Integration Tests', () => {
       });
 
       const proxy = createProxyController(config);
-      app.get('/users/:id', proxy(undefined, customHandler));
+      app.get('/users/:id', proxy(undefined, customHandler) as any);
 
       const response = await request(app)
         .get('/users/1')
@@ -412,7 +412,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/users/:id', proxy(undefined, true));
+      app.get('/users/:id', proxy(undefined, true) as any);
 
       const response = await request(app)
         .get('/users/1')
@@ -440,7 +440,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/headers', proxy());
+      app.get('/headers', proxy() as any);
 
       const response = await request(app)
         .get('/headers')
@@ -464,7 +464,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/users/1', proxy());
+      app.get('/users/1', proxy() as any);
 
       const response = await request(app)
         .get('/users/1')
@@ -496,7 +496,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/rate-limit', proxy());
+      app.get('/rate-limit', proxy() as any);
 
       // Make requests to trigger rate limiting
       await request(app).get('/rate-limit').expect(200);
@@ -521,7 +521,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/api/v1/users/:id', proxy('/users/:id'));
+      app.get('/api/v1/users/:id', proxy('/users/:id') as any);
 
       const response = await request(app)
         .get('/api/v1/users/1')
@@ -538,7 +538,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/timeout', proxy());
+      app.get('/timeout', proxy() as any);
 
       const response = await request(app)
         .get('/timeout?delay=2000') // 2 second delay
@@ -557,7 +557,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.delete('/users/:id', proxy());
+      app.delete('/users/:id', proxy() as any);
 
       await request(app)
         .delete('/users/1')
@@ -571,7 +571,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.get('/non-existent', proxy());
+      app.get('/non-existent', proxy() as any);
 
       const response = await request(app)
         .get('/non-existent')
@@ -587,7 +587,7 @@ describe('Proxy Integration Tests', () => {
       };
 
       const proxy = createProxyController(config);
-      app.post('/users', proxy());
+      app.post('/users', proxy() as any);
 
       const largeData = {
         name: 'Test User',

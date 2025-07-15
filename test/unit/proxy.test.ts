@@ -5,7 +5,7 @@ import {
   createProxyController,
   defaultErrorHandler,
 } from '../../src/proxy';
-import { ProxyConfig, ProxyError, RequestWithLocals } from '../../src/types';
+import { ProxyConfig, ProxyError, RequestWithFiles } from '../../src/types';
 
 describe('Proxy', () => {
   beforeEach(() => {
@@ -140,7 +140,7 @@ describe('Proxy', () => {
 
   describe('defaultErrorHandler', () => {
     let mockRes: Partial<Response>;
-    let mockReq: RequestWithLocals;
+    let mockReq: RequestWithFiles;
 
     beforeEach(() => {
       mockRes = {
@@ -148,7 +148,7 @@ describe('Proxy', () => {
         json: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
       };
-      mockReq = {} as RequestWithLocals;
+      mockReq = {} as RequestWithFiles;
     });
 
     it('should handle basic error', () => {
@@ -156,7 +156,7 @@ describe('Proxy', () => {
       error.status = 400;
       error.code = 'BAD_REQUEST';
 
-      defaultErrorHandler(error, mockReq, mockRes as Response);
+      defaultErrorHandler(error, mockReq as any, mockRes as Response);
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -173,7 +173,7 @@ describe('Proxy', () => {
       error.code = 'VALIDATION_ERROR';
       error.data = { field: 'name', message: 'required' };
 
-      defaultErrorHandler(error, mockReq, mockRes as Response);
+      defaultErrorHandler(error, mockReq as any, mockRes as Response);
 
       expect(mockRes.status).toHaveBeenCalledWith(422);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -194,7 +194,7 @@ describe('Proxy', () => {
         'content-length': '100',
       };
 
-      defaultErrorHandler(error, mockReq, mockRes as Response);
+      defaultErrorHandler(error, mockReq as any, mockRes as Response);
 
       expect(mockRes.set).toHaveBeenCalledWith('retry-after', '60');
       expect(mockRes.set).toHaveBeenCalledWith('x-ratelimit-remaining', '0');
@@ -204,7 +204,7 @@ describe('Proxy', () => {
     it('should use default values for missing properties', () => {
       const error: ProxyError = new Error();
 
-      defaultErrorHandler(error, mockReq, mockRes as Response);
+      defaultErrorHandler(error, mockReq as any, mockRes as Response);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -217,7 +217,7 @@ describe('Proxy', () => {
   });
 
   describe('createProxyController', () => {
-    let mockReq: RequestWithLocals;
+    let mockReq: RequestWithFiles;
     let mockRes: Partial<Response>;
     let mockNext: jest.Mock;
 

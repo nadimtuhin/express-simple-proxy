@@ -18,6 +18,7 @@
     "format:check": "prettier --check src/**/*.ts",
     "clean": "rimraf lib coverage",
     "prepare": "husky install",
+    "check": "pnpm run lint && pnpm run test:unit && pnpm run test:integration && pnpm run test:coverage && pnpm run build",
     "prepublishOnly": "pnpm run clean && pnpm run build && pnpm run test",
     "release:patch": "pnpm version patch && pnpm run changelog && git add CHANGELOG.md && git commit --amend --no-edit && git push --follow-tags",
     "release:minor": "pnpm version minor && pnpm run changelog && git add CHANGELOG.md && git commit --amend --no-edit && git push --follow-tags",
