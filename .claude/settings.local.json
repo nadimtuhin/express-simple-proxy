@@ -20,7 +20,8 @@
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(npm run lint)",
       "Bash(npm test:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(npm:*)"
     ],
     "deny": []
   }

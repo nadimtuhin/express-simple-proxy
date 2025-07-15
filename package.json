@@ -27,7 +27,9 @@
     "example": "ts-node examples/basic-usage.ts",
     "example:basic": "ts-node examples/basic-usage.ts",
     "example:omitted-path": "ts-node examples/omitted-path.ts",
-    "example:api-gateway": "ts-node examples/api-gateway.ts"
+    "example:api-gateway": "ts-node examples/api-gateway.ts",
+    "test:local-package": "node test-local-package.js",
+    "test:npm-package": "node test-npm-package.js"
   },
   "keywords": [
     "express",
