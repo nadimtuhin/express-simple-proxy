@@ -24,7 +24,10 @@
     "release:minor": "pnpm version minor && pnpm run changelog && git add CHANGELOG.md && git commit --amend --no-edit && git push --follow-tags",
     "release:major": "pnpm version major && pnpm run changelog && git add CHANGELOG.md && git commit --amend --no-edit && git push --follow-tags",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
-    "example": "ts-node examples/basic-usage.ts"
+    "example": "ts-node examples/basic-usage.ts",
+    "example:basic": "ts-node examples/basic-usage.ts",
+    "example:omitted-path": "ts-node examples/omitted-path.ts",
+    "example:api-gateway": "ts-node examples/api-gateway.ts"
   },
   "keywords": [
     "express",

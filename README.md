@@ -293,6 +293,152 @@ app.get('/api/users/:userId/orders/:orderId', proxy());
 - When you want to maintain URL consistency between layers
 - Rapid prototyping and development environments
 
+### Real-World Omitted Path Examples
+
+```typescript
+// 1. E-Commerce API Gateway
+const productService = createProxyController({
+  baseURL: 'https://product-service.company.com',
+  headers: (req) => ({
+    'Authorization': req.headers.authorization,
+    'X-Request-ID': req.headers['x-request-id'],
+  })
+});
+
+const orderService = createProxyController({
+  baseURL: 'https://order-service.company.com',
+  headers: (req) => ({
+    'Authorization': req.headers.authorization,
+    'X-User-ID': req.user?.id,
+  })
+});
+
+// Direct passthrough - no path transformation needed
+app.get('/api/products', productService());           // → /api/products
+app.get('/api/products/:id', productService());       // → /api/products/:id
+app.post('/api/products/:id/reviews', productService()); // → /api/products/:id/reviews
+
+app.get('/api/orders', orderService());               // → /api/orders
+app.post('/api/orders', orderService());              // → /api/orders
+app.get('/api/orders/:id/tracking', orderService());  // → /api/orders/:id/tracking
+
+// 2. Multi-Tenant SaaS Application
+const tenantProxy = createProxyController({
+  baseURL: 'https://tenant-api.saas.com',
+  headers: (req) => ({
+    'Authorization': req.headers.authorization,
+    'X-Tenant-ID': req.params.tenantId,
+    'Content-Type': 'application/json'
+  })
+});
+
+// All tenant-specific routes use direct mapping
+app.get('/api/tenants/:tenantId/users', tenantProxy());
+app.post('/api/tenants/:tenantId/users', tenantProxy());
+app.get('/api/tenants/:tenantId/users/:userId', tenantProxy());
+app.put('/api/tenants/:tenantId/users/:userId', tenantProxy());
+app.get('/api/tenants/:tenantId/analytics/dashboard', tenantProxy());
+app.get('/api/tenants/:tenantId/billing/invoices', tenantProxy());
+
+// 3. Development Environment Proxy
+const devApiProxy = createProxyController({
+  baseURL: process.env.API_BASE_URL || 'https://api-dev.company.com',
+  headers: (req) => ({
+    'Authorization': req.headers.authorization,
+    'X-Environment': 'development',
+    'X-Developer': req.headers['x-developer-id'],
+  })
+});
+
+// Mirror production API structure exactly
+app.use('/api', (req, res, next) => {
+  // Add development-specific middleware
+  console.log(`[DEV] ${req.method} ${req.path}`);
+  next();
+});
+
+app.get('/api/*', devApiProxy());     // Catch-all for GET requests
+app.post('/api/*', devApiProxy());    // Catch-all for POST requests
+app.put('/api/*', devApiProxy());     // Catch-all for PUT requests
+app.delete('/api/*', devApiProxy());  // Catch-all for DELETE requests
+
+// 4. GraphQL and REST API Bridge
+const graphqlService = createProxyController({
+  baseURL: 'https://graphql-api.company.com',
+  headers: (req) => ({
+    'Authorization': req.headers.authorization,
+    'Content-Type': 'application/json',
+  })
+});
+
+const restService = createProxyController({
+  baseURL: 'https://rest-api.company.com',
+  headers: (req) => ({
+    'Authorization': req.headers.authorization,
+    'Accept': 'application/json',
+  })
+});
+
+// GraphQL endpoint
+app.post('/graphql', graphqlService());
+
+// REST endpoints - direct mapping
+app.get('/api/v1/users', restService());
+app.post('/api/v1/users', restService());
+app.get('/api/v1/users/:id', restService());
+app.put('/api/v1/users/:id', restService());
+app.delete('/api/v1/users/:id', restService());
+
+// 5. Microservices with Service Mesh
+const createServiceProxy = (serviceName: string) => {
+  return createProxyController({
+    baseURL: `https://${serviceName}.mesh.internal`,
+    headers: (req) => ({
+      'Authorization': req.headers.authorization,
+      'X-Correlation-ID': req.headers['x-correlation-id'] || generateId(),
+      'X-Service-Name': serviceName,
+    })
+  });
+};
+
+const userService = createServiceProxy('user-service');
+const notificationService = createServiceProxy('notification-service');
+const auditService = createServiceProxy('audit-service');
+
+// Service mesh routing - paths stay consistent
+app.get('/api/users', userService());
+app.get('/api/users/:id/notifications', notificationService());
+app.post('/api/audit/events', auditService());
+
+// 6. API Versioning with Omitted Paths
+const v1Service = createProxyController({
+  baseURL: 'https://api-v1.company.com',
+  headers: (req) => ({ 'API-Version': '1.0' })
+});
+
+const v2Service = createProxyController({
+  baseURL: 'https://api-v2.company.com',
+  headers: (req) => ({ 'API-Version': '2.0' })
+});
+
+// Version-specific routing with direct path mapping
+app.use('/api/v1', (req, res, next) => {
+  // v1 specific middleware
+  next();
+});
+
+app.use('/api/v2', (req, res, next) => {
+  // v2 specific middleware
+  next();
+});
+
+// Direct mapping preserves API structure
+app.get('/api/v1/users', v1Service());
+app.get('/api/v1/users/:id', v1Service());
+app.get('/api/v2/users', v2Service());
+app.get('/api/v2/users/:id', v2Service());
+```
+
 ### File Upload Proxy
 
 ```typescript
@@ -523,8 +669,58 @@ npm run lint
 # Format code
 npm run format
 
-# Run example
-npm run example
+# Run examples
+npm run example               # Basic usage example
+npm run example:basic         # Basic proxy usage
+npm run example:omitted-path  # Comprehensive omitted path examples
+npm run example:api-gateway   # Real-world API Gateway example
+```
+
+## Examples
+
+The repository includes comprehensive examples demonstrating various use cases:
+
+### Basic Usage (`examples/basic-usage.ts`)
+Simple proxy setup with basic configuration and usage patterns.
+
+### Omitted Path Examples (`examples/omitted-path.ts`)
+Comprehensive examples showcasing omitted proxy path patterns:
+- Simple API Gateway with direct path mapping
+- Multi-service architecture
+- Development environment mirrors
+- Multi-tenant SaaS applications
+- REST API with full CRUD operations
+- API versioning with consistent paths
+- Microservices with service discovery
+- Error handling with omitted paths
+
+### API Gateway (`examples/api-gateway.ts`)
+A complete, runnable API Gateway implementation featuring:
+- **Authentication**: JWT-based auth with login/register endpoints
+- **Multiple Services**: User management, content management, and public APIs
+- **Direct Path Mapping**: All routes use omitted proxy paths
+- **Error Handling**: Service-specific error responses and monitoring
+- **Health Checks**: Service health monitoring and metrics
+- **Documentation**: Built-in API documentation endpoint
+
+**Quick Start with API Gateway:**
+```bash
+# Start the API Gateway
+npm run example:api-gateway
+
+# Test endpoints
+curl http://localhost:8080/api/docs          # API documentation
+curl http://localhost:8080/api/health        # Health check
+curl http://localhost:8080/posts             # Public posts via JSONPlaceholder
+
+# Authentication
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password"}'
+
+# Use authenticated endpoints
+curl http://localhost:8080/api/users \
+  -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ## Contributing
