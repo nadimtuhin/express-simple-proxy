@@ -37,7 +37,7 @@ export async function axiosProxyRequest(payload: ProxyRequestPayload): Promise<P
       timeout: payload.timeout,
       maxContentLength: MAX_REQUEST_SIZE,
       maxBodyLength: MAX_REQUEST_SIZE,
-      ...(payload.data && { data: payload.data }),
+      ...(payload.data ? { data: payload.data } : {}),
     };
 
     const response = await axios(options);
@@ -85,7 +85,7 @@ export function defaultErrorHandler(
     error: {
       message: error.message || 'Internal server error',
       code: error.code || 'UNKNOWN_ERROR',
-      ...(error.data && { details: error.data }),
+      ...(error.data ? { details: error.data } : {}),
     },
   };
 
@@ -93,7 +93,7 @@ export function defaultErrorHandler(
   if (error.headers) {
     Object.keys(error.headers).forEach(header => {
       if (header.toLowerCase() !== 'content-length') {
-        res.set(header, error.headers[header]);
+        res.set(header, error.headers![header]);
       }
     });
   }

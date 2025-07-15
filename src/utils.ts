@@ -1,7 +1,7 @@
 import { URLSearchParams } from 'url';
 import FormData from 'form-data';
 import { Response, NextFunction } from 'express';
-import { UrlVariables, QueryParams, RequestWithFiles, CurlCommandOptions } from './types';
+import { UrlVariables, RequestWithFiles, RequestWithLocals, CurlCommandOptions } from './types';
 
 /**
  * Joins URL parts with proper handling of slashes and query strings
@@ -65,7 +65,7 @@ export function replaceUrlTemplate(url: string, urlVariables: UrlVariables): str
 /**
  * Build query string from object with proper encoding
  */
-export function buildQueryString(query: QueryParams): string {
+export function buildQueryString(query: Record<string, string | string[] | undefined>): string {
   if (!query || Object.keys(query).length === 0) {
     return '';
   }
@@ -176,11 +176,11 @@ export function generateCurlCommand(payload: CurlCommandOptions, req?: RequestWi
  * Async wrapper for Express middleware
  */
 export function asyncWrapper(
-  fn: (req: RequestWithFiles, res: Response, next: NextFunction) => Promise<void>
+  fn: (req: RequestWithLocals, res: Response, next?: NextFunction) => Promise<void>
 ): (req: RequestWithFiles, res: Response, next: NextFunction) => Promise<void> {
   return async (req: RequestWithFiles, res: Response, next: NextFunction) => {
     try {
-      await fn(req, res, next);
+      await fn(req as RequestWithLocals, res, next);
     } catch (error) {
       next(error);
     }

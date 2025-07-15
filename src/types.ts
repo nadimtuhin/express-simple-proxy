@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Readable } from 'stream';
 import { AxiosResponse } from 'axios';
 
 export interface ProxyConfig {
@@ -45,7 +46,7 @@ export interface RequestWithLocals extends Request {
     [key: string]: unknown;
   };
   params: Record<string, string>;
-  query: QueryParams;
+  query: Record<string, string | string[] | undefined>;
   body: Record<string, unknown>;
   method: string;
   path: string;
@@ -70,14 +71,14 @@ export type ResponseHandler = (
 export type ProxyController = (
   proxyPath?: string,
   handler?: ResponseHandler | boolean
-) => (req: RequestWithLocals, res: Response, next: NextFunction) => Promise<void>;
+) => (req: RequestWithFiles, res: Response, next: NextFunction) => Promise<void>;
 
 export interface UrlVariables {
   [key: string]: string | number;
 }
 
 export interface QueryParams {
-  [key: string]: string | string[] | number | boolean | undefined | null;
+  [key: string]: string | string[] | number | boolean | undefined;
 }
 
 export interface FileUpload {
@@ -87,7 +88,7 @@ export interface FileUpload {
   mimetype: string;
   buffer: Buffer;
   size: number;
-  stream?: unknown;
+  stream?: Readable | undefined;
   destination?: string;
   filename?: string;
   path?: string;
