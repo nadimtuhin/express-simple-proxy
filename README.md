@@ -1,0 +1,383 @@
+# Express Simple Proxy
+
+A simple, powerful, and TypeScript-ready Express.js proxy middleware with comprehensive error handling, request/response transformation, and file upload support.
+
+[![npm version](https://badge.fury.io/js/express-simple-proxy.svg)](https://badge.fury.io/js/express-simple-proxy)
+[![Build Status](https://github.com/nadimtuhin/express-simple-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/nadimtuhin/express-simple-proxy/actions)
+[![Coverage Status](https://coveralls.io/repos/github/nadimtuhin/express-simple-proxy/badge.svg?branch=main)](https://coveralls.io/github/nadimtuhin/express-simple-proxy?branch=main)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Features
+
+- 🚀 **Simple Setup**: Get started with just a few lines of code
+- 🔒 **TypeScript Support**: Full TypeScript support with comprehensive type definitions
+- 🛡️ **Error Handling**: Advanced error handling with custom error handlers and hooks
+- 📁 **File Upload Support**: Handle multipart/form-data and file uploads seamlessly
+- 🔄 **Request/Response Transformation**: Transform requests and responses as needed
+- 🏷️ **URL Template Support**: Dynamic URL path parameter replacement
+- 🎯 **Query Parameter Handling**: Automatic query string building and encoding
+- 📊 **Activity Logging**: Built-in activity logging integration
+- 🔧 **Configurable**: Extensive configuration options for timeouts, headers, and more
+- 🧪 **Well Tested**: Comprehensive unit and integration tests
+
+## Installation
+
+```bash
+npm install express-simple-proxy
+```
+
+## Quick Start
+
+```typescript
+import express from 'express';
+import { createProxyController } from 'express-simple-proxy';
+
+const app = express();
+
+// Create proxy controller
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: (req) => ({
+    'Authorization': `Bearer ${req.headers.authorization}`,
+    'User-Agent': 'MyApp/1.0'
+  })
+});
+
+// Use proxy middleware
+app.get('/users', proxy('/api/users'));
+app.get('/users/:id', proxy('/api/users/:id'));
+app.post('/users', proxy('/api/users'));
+
+app.listen(3000, () => {
+  console.log('Proxy server running on port 3000');
+});
+```
+
+## Configuration
+
+### Basic Configuration
+
+```typescript
+import { createProxyController, ProxyConfig } from 'express-simple-proxy';
+
+const config: ProxyConfig = {
+  baseURL: 'https://api.example.com',
+  headers: (req) => ({
+    'Authorization': `Bearer ${req.locals.token}`,
+    'Content-Type': 'application/json'
+  }),
+  timeout: 30000, // 30 seconds
+  responseHeaders: (response) => ({
+    'X-Proxy-Response': 'true',
+    'X-Response-Time': Date.now().toString()
+  }),
+  errorHandler: (error, req, res) => {
+    res.status(error.status || 500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  },
+  errorHandlerHook: async (error, req, res) => {
+    // Log error to external service
+    await logErrorToService(error, req);
+    
+    // Add context to error
+    error.context = `${req.method} ${req.path}`;
+    return error;
+  }
+};
+
+const proxy = createProxyController(config);
+```
+
+### Configuration Options
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `baseURL` | `string` | ✅ | Base URL for the target API |
+| `headers` | `function` | ✅ | Function that returns headers object based on request |
+| `timeout` | `number` | ❌ | Request timeout in milliseconds (default: 30000) |
+| `responseHeaders` | `function` | ❌ | Function to transform response headers |
+| `errorHandler` | `function` | ❌ | Custom error handling function |
+| `errorHandlerHook` | `function` | ❌ | Error processing hook function |
+
+## Usage Examples
+
+### Basic Proxy
+
+```typescript
+// Proxy all requests to the same path
+app.get('/api/users', proxy());
+
+// Proxy to a different path
+app.get('/users', proxy('/api/users'));
+
+// Proxy with path parameters
+app.get('/users/:id', proxy('/api/users/:id'));
+```
+
+### File Upload Proxy
+
+```typescript
+import multer from 'multer';
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Single file upload
+app.post('/upload', upload.single('file'), proxy('/api/upload'));
+
+// Multiple file upload
+app.post('/upload-multiple', upload.array('files'), proxy('/api/upload-multiple'));
+
+// Form data with file
+app.post('/profile', upload.single('avatar'), proxy('/api/profile'));
+```
+
+### Custom Response Handler
+
+```typescript
+// Custom response transformation
+app.get('/users', proxy('/api/users', (req, res, remoteResponse) => {
+  res.json({
+    success: true,
+    data: remoteResponse.data,
+    timestamp: new Date().toISOString()
+  });
+}));
+
+// Return raw response
+app.get('/users', proxy('/api/users', true));
+```
+
+### Advanced Error Handling
+
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: (req) => ({ 'Authorization': req.headers.authorization }),
+  
+  // Error processing hook
+  errorHandlerHook: async (error, req, res) => {
+    // Log to monitoring service
+    await monitoring.logError(error, {
+      method: req.method,
+      path: req.path,
+      userId: req.user?.id
+    });
+    
+    // Send alert for server errors
+    if (error.status >= 500) {
+      await alerting.sendAlert({
+        title: 'API Proxy Error',
+        message: `${error.status}: ${error.message}`,
+        severity: 'high'
+      });
+    }
+    
+    return error;
+  },
+  
+  // Custom error response
+  errorHandler: (error, req, res) => {
+    const response = {
+      success: false,
+      error: {
+        message: error.message,
+        code: error.code,
+        status: error.status
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+        requestId: req.headers['x-request-id'],
+        path: req.path
+      }
+    };
+    
+    // Forward rate limiting headers
+    if (error.status === 429 && error.headers) {
+      ['retry-after', 'x-ratelimit-remaining'].forEach(header => {
+        if (error.headers[header]) {
+          res.set(header, error.headers[header]);
+        }
+      });
+    }
+    
+    res.status(error.status || 500).json(response);
+  }
+});
+```
+
+## Error Handling
+
+The proxy provides comprehensive error handling with three types of errors:
+
+### 1. Response Errors (4xx/5xx)
+Server responded with an error status. The proxy preserves the original status code and error data.
+
+### 2. Network Errors (503)
+Request was made but no response was received (timeout, connection refused, DNS failures).
+
+### 3. Request Setup Errors (500)
+Error in request configuration (invalid URL, malformed data).
+
+### Error Handler Flow
+
+1. **Error Occurs**: Network, HTTP, or setup error
+2. **Activity Log Cleanup**: Remove activity log if present
+3. **Error Hook Processing**: Process/modify error (if configured)
+4. **Error Handling**: Send response to client (custom or default)
+5. **Fallback**: If custom handlers fail, use default error handler
+
+## Activity Logging
+
+The proxy supports automatic activity logging integration:
+
+```typescript
+app.post('/users', (req, res, next) => {
+  req.locals = {
+    activityLog: {
+      type: 'CREATE_USER',
+      entity_id: '' // Will be populated from response
+    }
+  };
+  next();
+}, proxy('/api/users'));
+```
+
+## Utility Functions
+
+The package exports several utility functions for advanced usage:
+
+```typescript
+import {
+  urlJoin,
+  replaceUrlTemplate,
+  buildQueryString,
+  createFormDataPayload,
+  generateCurlCommand,
+  setEntityId,
+  asyncWrapper
+} from 'express-simple-proxy';
+
+// URL manipulation
+const url = urlJoin('https://api.example.com', 'users', '?page=1');
+const templated = replaceUrlTemplate('/users/:id', { id: 123 });
+
+// Query string building
+const qs = buildQueryString({ page: 1, tags: ['red', 'blue'] });
+
+// Form data creation
+const formData = createFormDataPayload(req);
+
+// Debugging
+const curlCommand = generateCurlCommand(payload, req);
+```
+
+## TypeScript Support
+
+The package is written in TypeScript and includes comprehensive type definitions:
+
+```typescript
+import {
+  ProxyConfig,
+  ProxyError,
+  ProxyResponse,
+  RequestWithLocals,
+  ErrorHandler,
+  ErrorHandlerHook,
+  ResponseHandler
+} from 'express-simple-proxy';
+
+const config: ProxyConfig = {
+  baseURL: 'https://api.example.com',
+  headers: (req: RequestWithLocals) => ({
+    'Authorization': `Bearer ${req.locals?.token}`
+  }),
+  errorHandler: (error: ProxyError, req: RequestWithLocals, res: Response) => {
+    // Type-safe error handling
+    res.status(error.status || 500).json({
+      error: error.message
+    });
+  }
+};
+```
+
+## Testing
+
+The package includes comprehensive unit and integration tests:
+
+```bash
+# Run all tests
+npm test
+
+# Run unit tests only
+npm run test:unit
+
+# Run integration tests only
+npm run test:integration
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run tests in watch mode
+npm run test:watch
+```
+
+## Development
+
+```bash
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
+
+# Run in development mode
+npm run dev
+
+# Lint code
+npm run lint
+
+# Format code
+npm run format
+
+# Run example
+npm run example
+```
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](./CONTRIBUTING.md) for details on how to contribute to this project.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for a detailed history of changes to this project.
+
+## Support
+
+If you encounter any issues or have questions, please:
+
+1. Check the [FAQ](./docs/FAQ.md)
+2. Search [existing issues](https://github.com/nadimtuhin/express-simple-proxy/issues)
+3. Create a [new issue](https://github.com/nadimtuhin/express-simple-proxy/issues/new)
+
+## Related Projects
+
+- [http-proxy-middleware](https://github.com/chimurai/http-proxy-middleware) - More advanced proxy middleware
+- [express-http-proxy](https://github.com/villadora/express-http-proxy) - Another Express proxy solution
+- [axios](https://github.com/axios/axios) - HTTP client library used internally
+
+---
+
+Made with ❤️ by [Nadim Tuhin](https://github.com/nadimtuhin)
