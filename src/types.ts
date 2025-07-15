@@ -13,12 +13,12 @@ export interface ProxyConfig {
 export interface ProxyError extends Error {
   status?: number;
   code?: string;
-  data?: any;
+  data?: unknown;
   headers?: Record<string, string>;
 }
 
 export interface ProxyResponse extends AxiosResponse {
-  data: any;
+  data: unknown;
   status: number;
   statusText: string;
   headers: Record<string, string>;
@@ -28,7 +28,7 @@ export interface ProxyRequestPayload {
   url: string;
   method: string;
   headers: Record<string, string>;
-  data?: any;
+  data?: unknown;
   timeout: number;
 }
 
@@ -36,17 +36,17 @@ export interface CurlCommandOptions {
   url: string;
   method: string;
   headers: Record<string, string>;
-  data?: any;
+  data?: unknown;
 }
 
 export interface RequestWithLocals extends Request {
   locals?: {
     token?: string;
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  params: any;
-  query: any;
-  body: any;
+  params: Record<string, string>;
+  query: QueryParams;
+  body: Record<string, unknown>;
   method: string;
   path: string;
   is: (type: string) => string | false | null;
@@ -87,7 +87,7 @@ export interface FileUpload {
   mimetype: string;
   buffer: Buffer;
   size: number;
-  stream?: any;
+  stream?: unknown;
   destination?: string;
   filename?: string;
   path?: string;

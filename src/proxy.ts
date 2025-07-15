@@ -32,7 +32,7 @@ export async function axiosProxyRequest(payload: ProxyRequestPayload): Promise<P
   try {
     const options = {
       url: payload.url,
-      method: payload.method as any,
+      method: payload.method,
       headers: payload.headers,
       timeout: payload.timeout,
       maxContentLength: MAX_REQUEST_SIZE,
@@ -49,7 +49,8 @@ export async function axiosProxyRequest(payload: ProxyRequestPayload): Promise<P
     if (axiosError.response) {
       // Server responded with error status
       const enhancedError: ProxyError = new Error(
-        (axiosError.response.data as any)?.message || axiosError.message
+        ((axiosError.response.data as Record<string, unknown>)?.message as string) ||
+          axiosError.message
       );
       enhancedError.status = axiosError.response.status;
       enhancedError.data = axiosError.response.data;
@@ -92,7 +93,7 @@ export function defaultErrorHandler(
   if (error.headers) {
     Object.keys(error.headers).forEach(header => {
       if (header.toLowerCase() !== 'content-length') {
-        res.set(header, error.headers![header]);
+        res.set(header, error.headers[header]);
       }
     });
   }
@@ -178,6 +179,7 @@ export function createProxyController(config: ProxyConfig): ProxyController {
       try {
         // Log curl command in development mode
         if (process.env.NODE_ENV === 'development') {
+          // eslint-disable-next-line no-console
           console.log('🔄 Proxy Request:', generateCurlCommand(payload, req as RequestWithFiles));
         }
 
@@ -192,14 +194,11 @@ export function createProxyController(config: ProxyConfig): ProxyController {
           }
 
           res.json(remoteResponse.data);
-          return;
         } else if (typeof handler === 'function') {
           await handler(req, res, remoteResponse);
-          return;
         } else {
           // For handler === true, return raw response
           res.json(remoteResponse.data);
-          return;
         }
       } catch (error) {
         let processedError = error as ProxyError;

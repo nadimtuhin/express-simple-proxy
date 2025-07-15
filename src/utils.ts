@@ -1,5 +1,6 @@
 import { URLSearchParams } from 'url';
 import FormData from 'form-data';
+import { Response, NextFunction } from 'express';
 import { UrlVariables, QueryParams, RequestWithFiles, CurlCommandOptions } from './types';
 
 /**
@@ -12,7 +13,7 @@ export function urlJoin(...parts: string[]): string {
     return '';
   }
 
-  let joined = filteredParts
+  const joined = filteredParts
     .map((part, index) => {
       if (index === 0) {
         return part.replace(/\/+$/, '');
@@ -175,9 +176,9 @@ export function generateCurlCommand(payload: CurlCommandOptions, req?: RequestWi
  * Async wrapper for Express middleware
  */
 export function asyncWrapper(
-  fn: (req: any, res: any, next: any) => Promise<any>
-): (req: any, res: any, next: any) => Promise<void> {
-  return async (req, res, next) => {
+  fn: (req: RequestWithFiles, res: Response, next: NextFunction) => Promise<void>
+): (req: RequestWithFiles, res: Response, next: NextFunction) => Promise<void> {
+  return async (req: RequestWithFiles, res: Response, next: NextFunction) => {
     try {
       await fn(req, res, next);
     } catch (error) {
