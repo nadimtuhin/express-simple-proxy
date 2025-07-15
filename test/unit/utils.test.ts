@@ -60,7 +60,7 @@ describe('Utils', () => {
 
   describe('buildQueryString', () => {
     it('should build query string from object', () => {
-      const query = { page: 1, limit: 10, sort: 'name' };
+      const query = { page: '1', limit: '10', sort: 'name' };
       const result = buildQueryString(query);
       expect(result).toBe('?page=1&limit=10&sort=name');
     });
@@ -76,13 +76,13 @@ describe('Utils', () => {
     });
 
     it('should handle null and undefined values', () => {
-      const query = { page: 1, limit: null, sort: undefined, active: true };
+      const query = { page: '1', limit: undefined, sort: undefined, active: 'true' };
       const result = buildQueryString(query);
       expect(result).toBe('?page=1&active=true');
     });
 
     it('should handle boolean values', () => {
-      const query = { active: true, disabled: false };
+      const query = { active: 'true', disabled: 'false' };
       const result = buildQueryString(query);
       expect(result).toBe('?active=true&disabled=false');
     });
@@ -95,7 +95,7 @@ describe('Utils', () => {
           name: 'John Doe',
           email: 'john@example.com',
         },
-      } as RequestWithFiles;
+      } as unknown as RequestWithFiles;
 
       const formData = createFormDataPayload(req);
       expect(formData).toBeInstanceOf(FormData);
@@ -112,7 +112,7 @@ describe('Utils', () => {
           buffer: Buffer.from('fake-image-data'),
           size: 1024,
         },
-      } as RequestWithFiles;
+      } as unknown as RequestWithFiles;
 
       const formData = createFormDataPayload(req);
       expect(formData).toBeInstanceOf(FormData);
@@ -139,14 +139,14 @@ describe('Utils', () => {
             size: 2048,
           },
         ],
-      } as RequestWithFiles;
+      } as unknown as RequestWithFiles;
 
       const formData = createFormDataPayload(req);
       expect(formData).toBeInstanceOf(FormData);
     });
 
     it('should handle empty request', () => {
-      const req = {} as RequestWithFiles;
+      const req = {} as unknown as RequestWithFiles;
       const formData = createFormDataPayload(req);
       expect(formData).toBeInstanceOf(FormData);
     });
@@ -159,7 +159,7 @@ describe('Utils', () => {
           age: undefined,
           active: true,
         },
-      } as RequestWithFiles;
+      } as unknown as RequestWithFiles;
 
       const formData = createFormDataPayload(req);
       expect(formData).toBeInstanceOf(FormData);
@@ -211,7 +211,7 @@ describe('Utils', () => {
           fieldname: 'avatar',
           originalname: 'avatar.jpg',
         },
-      } as RequestWithFiles;
+      } as unknown as RequestWithFiles;
 
       const result = generateCurlCommand(payload, req);
       expect(result).toContain("curl -X POST 'http://example.com/api/upload'");
@@ -239,10 +239,12 @@ describe('Utils', () => {
       const mockFn = jest.fn().mockResolvedValue('success');
       const mockNext = jest.fn();
       const wrappedFn = asyncWrapper(mockFn);
+      const mockReq = {} as unknown as RequestWithFiles;
+      const mockRes = {} as any;
 
-      await wrappedFn('req', 'res', mockNext);
+      await wrappedFn(mockReq, mockRes, mockNext);
 
-      expect(mockFn).toHaveBeenCalledWith('req', 'res', mockNext);
+      expect(mockFn).toHaveBeenCalledWith(mockReq, mockRes, mockNext);
       expect(mockNext).not.toHaveBeenCalled();
     });
 
@@ -251,10 +253,12 @@ describe('Utils', () => {
       const mockFn = jest.fn().mockRejectedValue(error);
       const mockNext = jest.fn();
       const wrappedFn = asyncWrapper(mockFn);
+      const mockReq = {} as unknown as RequestWithFiles;
+      const mockRes = {} as any;
 
-      await wrappedFn('req', 'res', mockNext);
+      await wrappedFn(mockReq, mockRes, mockNext);
 
-      expect(mockFn).toHaveBeenCalledWith('req', 'res', mockNext);
+      expect(mockFn).toHaveBeenCalledWith(mockReq, mockRes, mockNext);
       expect(mockNext).toHaveBeenCalledWith(error);
     });
 
@@ -265,10 +269,12 @@ describe('Utils', () => {
       });
       const mockNext = jest.fn();
       const wrappedFn = asyncWrapper(mockFn);
+      const mockReq = {} as unknown as RequestWithFiles;
+      const mockRes = {} as any;
 
-      await wrappedFn('req', 'res', mockNext);
+      await wrappedFn(mockReq, mockRes, mockNext);
 
-      expect(mockFn).toHaveBeenCalledWith('req', 'res', mockNext);
+      expect(mockFn).toHaveBeenCalledWith(mockReq, mockRes, mockNext);
       expect(mockNext).toHaveBeenCalledWith(error);
     });
   });

@@ -92,8 +92,8 @@ export function defaultErrorHandler(
   // Forward original headers if available
   if (error.headers) {
     Object.keys(error.headers).forEach(header => {
-      if (header.toLowerCase() !== 'content-length') {
-        res.set(header, error.headers![header]);
+      if (header.toLowerCase() !== 'content-length' && error.headers) {
+        res.set(header, error.headers[header]);
       }
     });
   }
