@@ -23,6 +23,65 @@ A simple, powerful, and TypeScript-ready Express.js proxy middleware with compre
 - 🧪 **Well Tested**: 93.18% coverage with 76 passing tests across unit and integration suites
 - 🏗️ **CI/CD Ready**: Automated testing, building, and publishing pipeline
 
+## Why Choose Express Simple Proxy?
+
+### 🎯 **Perfect for API Gateways & Microservices**
+Unlike general-purpose proxies, this package is specifically designed for **API-to-API communication** in modern web applications:
+
+- **REST API Proxying**: Built from the ground up for JSON APIs with automatic content-type handling
+- **Microservices Architecture**: Seamlessly proxy requests between services with TypeScript safety
+- **API Gateway Pattern**: Ideal for aggregating multiple backend services into a single frontend API
+
+### 🔄 **Comparison with Other Proxy Solutions**
+
+| Feature | Express Simple Proxy | http-proxy-middleware | express-http-proxy | node-http-proxy |
+|---------|---------------------|----------------------|-------------------|-----------------|
+| **Primary Use Case** | API-to-API communication | General HTTP proxying | HTTP request proxying | Low-level HTTP proxy |
+| **TypeScript Support** | ✅ Native & Complete | ⚠️ Types available | ⚠️ Types available | ❌ Limited |
+| **File Upload Handling** | ✅ Built-in multipart/form-data | ❌ Manual setup required | ⚠️ Basic support | ❌ Not supported |
+| **JSON API Focus** | ✅ Optimized for REST APIs | ⚠️ Generic proxy | ⚠️ Generic proxy | ❌ Low-level |
+| **Error Handling** | ✅ Comprehensive with hooks | ⚠️ Basic | ⚠️ Basic | ❌ Manual |
+| **Request/Response Transform** | ✅ Built-in handlers | ✅ Supported | ✅ Supported | ⚠️ Manual |
+| **Debugging Support** | ✅ Curl generation | ❌ None | ❌ None | ❌ None |
+| **Setup Complexity** | 🟢 Simple | 🟡 Moderate | 🟡 Moderate | 🔴 Complex |
+
+### 🎪 **When to Use This Package**
+
+**✅ Choose Express Simple Proxy when:**
+- Building API gateways that aggregate multiple backend services
+- Creating microservices that need to communicate with other APIs
+- Developing applications that require file uploads through proxy
+- You need comprehensive error handling and request/response transformation
+- TypeScript is important for your project's type safety
+- You want built-in debugging capabilities (curl generation)
+- Your backend communication is primarily REST/JSON based
+
+**❌ Consider alternatives when:**
+- You need WebSocket proxying (use `http-proxy-middleware`)
+- You require low-level HTTP proxy control (use `node-http-proxy`)
+- You need to proxy non-API traffic like static files or HTML pages
+- You're building a traditional reverse proxy or load balancer
+
+### 🏗️ **Architecture Benefits**
+
+```typescript
+// Express Simple Proxy - Built for modern API architecture
+const userService = createProxyController({
+  baseURL: 'https://user-service.internal',
+  headers: (req) => ({ 'Authorization': req.headers.authorization })
+});
+
+const orderService = createProxyController({
+  baseURL: 'https://order-service.internal',
+  headers: (req) => ({ 'Authorization': req.headers.authorization })
+});
+
+// Clean, maintainable API gateway
+app.get('/api/users/:id', userService('/users/:id'));
+app.get('/api/orders/:id', orderService('/orders/:id'));
+app.post('/api/orders', orderService('/orders'));
+```
+
 ## Installation
 
 ```bash
