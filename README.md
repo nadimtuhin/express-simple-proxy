@@ -5,9 +5,10 @@ A simple, powerful, and TypeScript-ready Express.js proxy middleware with compre
 [![npm version](https://badge.fury.io/js/express-simple-proxy.svg)](https://badge.fury.io/js/express-simple-proxy)
 [![Build Status](https://github.com/nadimtuhin/express-simple-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/nadimtuhin/express-simple-proxy/actions)
 [![Coverage](https://img.shields.io/badge/coverage-93.18%25-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
-[![Tests](https://img.shields.io/badge/tests-76%20passed-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
+[![Tests](https://img.shields.io/badge/tests-109%20passed-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
+[![Known Vulnerabilities](https://snyk.io/test/github/nadimtuhin/express-simple-proxy/badge.svg)](https://snyk.io/test/github/nadimtuhin/express-simple-proxy)
 
 ## Features
 
@@ -169,15 +170,128 @@ const proxy = createProxyController(config);
 ### Basic Proxy
 
 ```typescript
-// Proxy all requests to the same path
+// 1. Omitted proxy path - uses request path directly
 app.get('/api/users', proxy());
+// GET /api/users → https://api.example.com/api/users
 
-// Proxy to a different path
+app.post('/api/users', proxy());
+// POST /api/users → https://api.example.com/api/users
+
+app.get('/api/users/:id', proxy());
+// GET /api/users/123 → https://api.example.com/api/users/123
+
+// 2. Explicit proxy path - redirects to specific endpoint
 app.get('/users', proxy('/api/users'));
+// GET /users → https://api.example.com/api/users
 
-// Proxy with path parameters
+app.get('/profile', proxy('/api/users/me'));
+// GET /profile → https://api.example.com/api/users/me
+
+// 3. Path parameter transformation
 app.get('/users/:id', proxy('/api/users/:id'));
+// GET /users/123 → https://api.example.com/api/users/123
+
+app.get('/users/:userId/orders/:orderId', proxy('/api/users/:userId/orders/:orderId'));
+// GET /users/123/orders/456 → https://api.example.com/api/users/123/orders/456
+
+// 4. Path mapping - different frontend and backend paths
+app.get('/dashboard/users', proxy('/api/admin/users'));
+// GET /dashboard/users → https://api.example.com/api/admin/users
+
+app.get('/public/health', proxy('/internal/health-check'));
+// GET /public/health → https://api.example.com/internal/health-check
 ```
+
+### Advanced Path Scenarios
+
+```typescript
+// 1. REST API Gateway Pattern
+const userAPI = createProxyController({
+  baseURL: 'https://user-service.internal',
+  headers: (req) => ({ 'Authorization': req.headers.authorization })
+});
+
+// Omitted paths - direct mapping
+app.get('/api/users', userAPI());           // → /api/users
+app.post('/api/users', userAPI());          // → /api/users
+app.get('/api/users/:id', userAPI());       // → /api/users/:id
+app.put('/api/users/:id', userAPI());       // → /api/users/:id
+app.delete('/api/users/:id', userAPI());    // → /api/users/:id
+
+// 2. Service-to-Service Communication
+const orderService = createProxyController({
+  baseURL: 'https://order-service.internal',
+  headers: (req) => ({ 'Service-Token': process.env.SERVICE_TOKEN })
+});
+
+// Direct service calls
+app.get('/orders', orderService());              // → /orders
+app.get('/orders/:id', orderService());          // → /orders/:id
+app.post('/orders', orderService());             // → /orders
+
+// 3. API Version Mapping
+app.get('/v1/users', proxy('/api/v1/users'));
+app.get('/v2/users', proxy('/api/v2/users'));
+app.get('/latest/users', proxy('/api/v3/users'));  // Latest maps to v3
+
+// 4. Multi-Service Aggregation
+const services = {
+  users: createProxyController({ baseURL: 'https://user-service.internal', headers: authHeaders }),
+  orders: createProxyController({ baseURL: 'https://order-service.internal', headers: authHeaders }),
+  products: createProxyController({ baseURL: 'https://product-service.internal', headers: authHeaders })
+};
+
+// Omitted paths for clean service routing
+app.use('/api/users', services.users());
+app.use('/api/orders', services.orders());
+app.use('/api/products', services.products());
+
+// 5. Dynamic Path Routing
+app.get('/tenant/:tenantId/users', proxy('/api/tenants/:tenantId/users'));
+app.get('/tenant/:tenantId/users/:userId', proxy('/api/tenants/:tenantId/users/:userId'));
+```
+
+### Omitted Proxy Path Pattern
+
+When you omit the proxy path parameter, the middleware uses the original request path, making it perfect for **direct API passthrough** scenarios:
+
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.backend.com',
+  headers: (req) => ({ 'Authorization': req.headers.authorization })
+});
+
+// Direct passthrough - request path matches backend path exactly
+app.get('/api/users', proxy());              // GET /api/users → https://api.backend.com/api/users
+app.post('/api/users', proxy());             // POST /api/users → https://api.backend.com/api/users
+app.get('/api/users/:id', proxy());          // GET /api/users/123 → https://api.backend.com/api/users/123
+app.put('/api/users/:id', proxy());          // PUT /api/users/123 → https://api.backend.com/api/users/123
+app.delete('/api/users/:id', proxy());       // DELETE /api/users/123 → https://api.backend.com/api/users/123
+
+// Perfect for REST API proxying
+app.get('/api/orders', proxy());
+app.post('/api/orders', proxy());
+app.get('/api/orders/:id', proxy());
+app.put('/api/orders/:id', proxy());
+app.delete('/api/orders/:id', proxy());
+
+// Handles complex nested paths automatically
+app.get('/api/users/:userId/orders/:orderId', proxy());
+// → https://api.backend.com/api/users/123/orders/456
+```
+
+**Benefits of Omitted Proxy Path:**
+- ✅ **Zero Configuration**: No path mapping needed
+- ✅ **Consistent Routing**: Frontend and backend paths stay in sync
+- ✅ **Automatic Parameter Handling**: All path parameters are preserved
+- ✅ **Perfect for Microservices**: Direct service-to-service communication
+- ✅ **Maintainable**: Changes to API structure don't require proxy updates
+
+**When to Use Omitted Proxy Path:**
+- API Gateway scenarios where frontend and backend paths match
+- Microservices communication with consistent API structure
+- When you want to maintain URL consistency between layers
+- Rapid prototyping and development environments
 
 ### File Upload Proxy
 
@@ -358,8 +472,8 @@ The package includes comprehensive unit and integration tests with **93.18% cove
 
 ### Test Coverage Details
 - **Total Coverage**: 93.18%
-- **Tests Passed**: 76/76 ✅
-- **Test Suites**: 3 (Unit, Integration, Utils)
+- **Tests Passed**: 109/109 ✅
+- **Test Suites**: 5 (Unit, Integration, Utils, Omitted Path)
 - **Files Covered**: 
   - `proxy.ts`: 91.01% coverage
   - `types.ts`: 100% coverage
