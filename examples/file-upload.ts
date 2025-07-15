@@ -10,7 +10,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Create proxy controller
 const proxy = createProxyController({
   baseURL: 'https://httpbin.org',
-  headers: (req) => ({
+  headers: () => ({
     'User-Agent': 'express-simple-proxy-example',
   }),
 });
