@@ -22,19 +22,24 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+        cache: 'pnpm'
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
     
     - name: Install dependencies
-      run: npm ci
+      run: pnpm install
     
     - name: Run linter
-      run: npm run lint
+      run: pnpm run lint
     
     - name: Run type check
-      run: npm run build
+      run: pnpm run build
     
     - name: Run tests
-      run: npm test -- --coverage
+      run: pnpm test -- --coverage
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -56,13 +61,18 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 18.x
-        cache: 'npm'
+        cache: 'pnpm'
+    
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
     
     - name: Install dependencies
-      run: npm ci
+      run: pnpm install
     
     - name: Build project
-      run: npm run build
+      run: pnpm run build
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
@@ -83,17 +93,22 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: 18.x
-        cache: 'npm'
+        cache: 'pnpm'
         registry-url: 'https://registry.npmjs.org'
     
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
+    
     - name: Install dependencies
-      run: npm ci
+      run: pnpm install
     
     - name: Build project
-      run: npm run build
+      run: pnpm run build
     
     - name: Publish to npm
-      run: npm publish --access public
+      run: pnpm publish --access public
       env:
         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       continue-on-error: true
