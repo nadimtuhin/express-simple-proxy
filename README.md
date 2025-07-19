@@ -361,7 +361,7 @@ const proxy = createProxyController({
 - Monitoring & Observability (Tracing, Metrics, Health Checks)
 - Load Balancing & Failover (Round Robin, Circuit Breakers)
 - Development & Testing (Mocking, A/B Testing, Feature Flags)
-- Rate Limiting & Throttling (Per-user, Distributed)
+- Rate Limiting & Throttling (Basic, Per-user)
 - Data Transformation (Schema Validation, GraphQL)
 - Content Negotiation (Accept Headers, Compression)
 

@@ -595,7 +595,7 @@ const proxy = createProxyController({
 
 ## Rate Limiting & Throttling
 
-### Request Rate Limiting
+### Basic Rate Limiting
 ```typescript
 import rateLimit from 'express-rate-limit';
 
@@ -615,8 +615,7 @@ const getUserLimiter = (userId) => {
   if (!userLimiters.has(userId)) {
     userLimiters.set(userId, rateLimit({
       windowMs: 60 * 1000,
-      max: 10,
-      skip: () => false
+      max: 10
     }));
   }
   return userLimiters.get(userId);
@@ -630,89 +629,6 @@ app.use('/api', (req, res, next) => {
     next();
   }
 }, proxy());
-```
-
-### Sliding Window Rate Limiting
-```typescript
-import Redis from 'ioredis';
-const redis = new Redis();
-
-const slidingWindowLimiter = async (req, res, next) => {
-  const key = `rate_limit:${req.ip}`;
-  const window = 60; // 60 seconds
-  const limit = 100; // 100 requests per window
-  
-  const now = Date.now();
-  const pipeline = redis.pipeline();
-  
-  // Remove old entries
-  pipeline.zremrangebyscore(key, 0, now - window * 1000);
-  // Add current request
-  pipeline.zadd(key, now, now);
-  // Count requests in window
-  pipeline.zcard(key);
-  // Set expiry
-  pipeline.expire(key, window);
-  
-  const results = await pipeline.exec();
-  const requestCount = results[2][1];
-  
-  if (requestCount > limit) {
-    return res.status(429).json({ error: 'Too Many Requests' });
-  }
-  
-  next();
-};
-
-app.use('/api', slidingWindowLimiter, proxy());
-```
-
-### Distributed Rate Limiting
-```typescript
-import Redis from 'ioredis';
-const redis = new Redis.Cluster([
-  { host: 'redis-1', port: 6379 },
-  { host: 'redis-2', port: 6379 }
-]);
-
-const distributedRateLimit = async (req, res, next) => {
-  const userId = req.user?.id || req.ip;
-  const key = `global_rate_limit:${userId}`;
-  
-  const script = `
-    local key = KEYS[1]
-    local window = tonumber(ARGV[1])
-    local limit = tonumber(ARGV[2])
-    local now = tonumber(ARGV[3])
-    
-    redis.call('zremrangebyscore', key, 0, now - window * 1000)
-    local count = redis.call('zcard', key)
-    
-    if count < limit then
-      redis.call('zadd', key, now, now)
-      redis.call('expire', key, window)
-      return {1, limit - count - 1}
-    else
-      return {0, 0}
-    end
-  `;
-  
-  const [allowed, remaining] = await redis.eval(
-    script, 1, key, 60, 1000, Date.now()
-  );
-  
-  if (!allowed) {
-    return res.status(429).json({ 
-      error: 'Rate limit exceeded',
-      retryAfter: 60 
-    });
-  }
-  
-  res.set('X-RateLimit-Remaining', remaining);
-  next();
-};
-
-app.use('/api', distributedRateLimit, proxy());
 ```
 
 ## Data Transformation
