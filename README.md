@@ -10,6 +10,8 @@
 
 TypeScript-ready Express middleware for proxying API requests with zero configuration needed. Perfect for API gateways and microservices.
 
+**⚠️ Note:** This package handles HTTP requests only. For WebSocket proxying, use dedicated WebSocket proxy solutions like `http-proxy-middleware`.
+
 ```bash
 npm install express-simple-proxy
 ```
@@ -360,7 +362,6 @@ const proxy = createProxyController({
 - Load Balancing & Failover (Round Robin, Circuit Breakers)
 - Development & Testing (Mocking, A/B Testing, Feature Flags)
 - Rate Limiting & Throttling (Per-user, Distributed)
-- WebSockets & Real-time (SSE, WebRTC)
 - Data Transformation (Schema Validation, GraphQL)
 - Content Negotiation (Accept Headers, Compression)
 

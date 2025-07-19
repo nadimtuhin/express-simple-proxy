@@ -11,7 +11,6 @@ A collection of practical examples and recipes for common use cases with Express
 - [Load Balancing & Failover](#load-balancing--failover)
 - [Development & Testing](#development--testing)
 - [Rate Limiting & Throttling](#rate-limiting--throttling)
-- [WebSockets & Real-time](#websockets--real-time)
 - [Data Transformation](#data-transformation)
 - [Content Negotiation](#content-negotiation)
 
@@ -714,53 +713,6 @@ const distributedRateLimit = async (req, res, next) => {
 };
 
 app.use('/api', distributedRateLimit, proxy());
-```
-
-## WebSockets & Real-time
-
-### WebSocket Headers
-```typescript
-const proxy = createProxyController({
-  baseURL: 'https://api.example.com',
-  headers: (req) => ({
-    'Authorization': req.headers.authorization,
-    'Connection': req.headers.connection,
-    'Upgrade': req.headers.upgrade,
-    'Sec-WebSocket-Key': req.headers['sec-websocket-key'],
-    'Sec-WebSocket-Version': req.headers['sec-websocket-version']
-  })
-});
-```
-
-### Server-Sent Events Proxy
-```typescript
-app.get('/events', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
-  });
-  
-  // Forward to SSE endpoint
-  proxy('/api/events')(req, res);
-});
-```
-
-### WebRTC Signaling
-```typescript
-const proxy = createProxyController({
-  baseURL: 'https://signaling.example.com',
-  headers: (req) => ({
-    'Authorization': req.headers.authorization,
-    'X-Room-ID': req.params.roomId,
-    'X-User-ID': req.user?.id,
-    'X-Session-ID': req.sessionID
-  })
-});
-
-app.post('/webrtc/offer/:roomId', proxy('/signaling/offer'));
-app.post('/webrtc/answer/:roomId', proxy('/signaling/answer'));
-app.post('/webrtc/ice/:roomId', proxy('/signaling/ice'));
 ```
 
 ## Data Transformation
