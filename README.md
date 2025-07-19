@@ -10,33 +10,9 @@
 
 TypeScript-ready Express middleware for proxying API requests with zero configuration needed. Perfect for API gateways and microservices.
 
-**Install:**
 ```bash
 npm install express-simple-proxy
 ```
-
-**Quick Start:**
-```typescript
-import { createProxyController } from 'express-simple-proxy';
-
-const proxy = createProxyController({
-  baseURL: 'https://api.example.com',
-  headers: (req) => ({ 'Authorization': req.headers.authorization })
-});
-
-app.get('/users', proxy());              // GET /users → https://api.example.com/users
-app.get('/users/:id', proxy());          // GET /users/123 → https://api.example.com/users/123
-app.post('/users', proxy());             // POST /users → https://api.example.com/users
-```
-
-**Why Use This:**
-- 🚀 **Zero Config**: Omit proxy path for direct passthrough (`proxy()` instead of `proxy('/path')`)
-- 🔒 **TypeScript Native**: Full type safety with comprehensive type definitions
-- 📁 **File Uploads**: Built-in multipart/form-data handling with multer integration
-- 🛡️ **Error Handling**: Advanced error processing with hooks and custom handlers
-- 🎯 **API-First**: Optimized for REST API proxying, not general HTTP traffic
-
-**Perfect For:** API gateways, microservices communication, development proxies, and multi-tenant SaaS applications.
 
 ## Quick Start
 
