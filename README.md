@@ -326,9 +326,13 @@ app.post('/upload', upload.single('file'), proxy('/api/upload'));
 const servers = ['https://api1.com', 'https://api2.com', 'https://api3.com'];
 let current = 0;
 
-const proxy = createProxyController({
-  baseURL: () => servers[current++ % servers.length],
-  headers: (req) => ({ 'Authorization': req.headers.authorization })
+app.use('/api', (req, res, next) => {
+  const selectedServer = servers[current++ % servers.length];
+  const proxy = createProxyController({
+    baseURL: selectedServer,
+    headers: (req) => ({ 'Authorization': req.headers.authorization })
+  });
+  proxy()(req, res, next);
 });
 ```
 

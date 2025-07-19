@@ -67,19 +67,32 @@ const proxy = createProxyController({
 
 ### OAuth2 Token Refresh
 ```typescript
+// Token refresh middleware
+const tokenRefreshMiddleware = async (req, res, next) => {
+  let token = req.headers.authorization;
+  
+  // Check if token needs refresh
+  if (isTokenExpired(token)) {
+    try {
+      token = await refreshAccessToken(req.user.refreshToken);
+      req.headers.authorization = token;
+    } catch (error) {
+      return res.status(401).json({ error: 'Token refresh failed' });
+    }
+  }
+  
+  next();
+};
+
 const proxy = createProxyController({
   baseURL: 'https://api.example.com',
-  headers: async (req) => {
-    let token = req.headers.authorization;
-    
-    // Check if token needs refresh
-    if (isTokenExpired(token)) {
-      token = await refreshAccessToken(req.user.refreshToken);
-    }
-    
-    return { 'Authorization': token };
-  }
+  headers: (req) => ({
+    'Authorization': req.headers.authorization
+  })
 });
+
+// Use refresh middleware before proxy
+app.use('/api', tokenRefreshMiddleware, proxy());
 ```
 
 ## File Handling
@@ -195,13 +208,21 @@ const getShardURL = (userId) => {
   return `https://api-shard-${shardId}.example.com`;
 };
 
-const proxy = createProxyController({
-  baseURL: (req) => getShardURL(req.user?.id || 0),
-  headers: (req) => ({
-    'Authorization': req.headers.authorization,
-    'X-User-ID': req.user?.id,
-    'X-Shard-ID': (req.user?.id || 0) % 4
-  })
+// Create proxy based on user shard
+app.use('/api', (req, res, next) => {
+  const userId = req.user?.id || 0;
+  const shardURL = getShardURL(userId);
+  
+  const proxy = createProxyController({
+    baseURL: shardURL,
+    headers: (req) => ({
+      'Authorization': req.headers.authorization,
+      'X-User-ID': req.user?.id,
+      'X-Shard-ID': userId % 4
+    })
+  });
+  
+  proxy()(req, res, next);
 });
 ```
 
@@ -210,24 +231,33 @@ const proxy = createProxyController({
 import Redis from 'ioredis';
 const redis = new Redis(process.env.REDIS_URL);
 
+// Cache middleware that runs before proxy
+const cacheMiddleware = async (req, res, next) => {
+  if (req.method === 'GET') {
+    const cacheKey = `${req.method}:${req.path}:${req.user?.id}`;
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return res.json(JSON.parse(cached));
+    }
+  }
+  next();
+};
+
 const proxy = createProxyController({
   baseURL: 'https://api.example.com',
   headers: (req) => ({
     'Authorization': req.headers.authorization,
     'X-Cache-Key': `${req.method}:${req.path}:${req.user?.id}`
   }),
-  errorHandlerHook: async (error, req, res) => {
-    if (req.method === 'GET' && error.status >= 500) {
-      const cacheKey = `${req.method}:${req.path}:${req.user?.id}`;
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        res.json(JSON.parse(cached));
-        return null; // Skip error handling
-      }
-    }
+  errorHandlerHook: (error, req, res) => {
+    // Log cache miss on error
+    console.log('Cache miss and API error:', error.message);
     return error;
   }
 });
+
+// Use both middleware
+app.use('/api', cacheMiddleware, proxy());
 ```
 
 ## Monitoring & Observability
@@ -335,13 +365,21 @@ const servers = [
 
 let currentServer = 0;
 
-const loadBalancedProxy = createProxyController({
-  baseURL: () => {
-    const server = servers[currentServer];
-    currentServer = (currentServer + 1) % servers.length;
-    return server;
-  },
-  headers: (req) => ({ 'Authorization': req.headers.authorization })
+// Create separate proxy controllers for each server
+const getLoadBalancedProxy = () => {
+  const server = servers[currentServer];
+  currentServer = (currentServer + 1) % servers.length;
+  
+  return createProxyController({
+    baseURL: server,
+    headers: (req) => ({ 'Authorization': req.headers.authorization })
+  });
+};
+
+// Use in middleware
+app.use('/api', (req, res, next) => {
+  const proxy = getLoadBalancedProxy();
+  proxy()(req, res, next);
 });
 ```
 
@@ -367,9 +405,14 @@ const getWeightedServer = () => {
   return servers[0].url;
 };
 
-const proxy = createProxyController({
-  baseURL: getWeightedServer,
-  headers: (req) => ({ 'Authorization': req.headers.authorization })
+// Create proxy with weighted selection
+app.use('/api', (req, res, next) => {
+  const selectedServer = getWeightedServer();
+  const proxy = createProxyController({
+    baseURL: selectedServer,
+    headers: (req) => ({ 'Authorization': req.headers.authorization })
+  });
+  proxy()(req, res, next);
 });
 ```
 
@@ -378,15 +421,25 @@ const proxy = createProxyController({
 const primaryProxy = createProxyController({
   baseURL: 'https://api-primary.example.com',
   timeout: 5000,
-  errorHandlerHook: async (error, req, res) => {
+  headers: (req) => ({ 'Authorization': req.headers.authorization })
+});
+
+const fallbackProxy = createProxyController({
+  baseURL: 'https://api-fallback.example.com',
+  headers: (req) => ({ 'Authorization': req.headers.authorization })
+});
+
+// Failover middleware
+app.use('/api', async (req, res, next) => {
+  try {
+    await primaryProxy()(req, res, next);
+  } catch (error) {
     if (error.status >= 500) {
-      // Fallback to secondary
-      const fallbackProxy = createProxyController({
-        baseURL: 'https://api-fallback.example.com'
-      });
-      return fallbackProxy()(req, res);
+      console.log('Primary failed, using fallback');
+      await fallbackProxy()(req, res, next);
+    } else {
+      throw error;
     }
-    return error;
   }
 });
 ```
@@ -508,16 +561,21 @@ const proxy = createProxyController({
 
 ### A/B Testing
 ```typescript
-const proxy = createProxyController({
-  baseURL: (req) => {
-    const userId = req.user?.id;
-    const isVariantB = userId % 2 === 0; // 50/50 split
-    return isVariantB ? 'https://api-variant-b.com' : 'https://api-variant-a.com';
-  },
-  headers: (req) => ({
-    'Authorization': req.headers.authorization,
-    'X-Variant': req.user?.id % 2 === 0 ? 'B' : 'A'
-  })
+// A/B testing middleware
+app.use('/api', (req, res, next) => {
+  const userId = req.user?.id;
+  const isVariantB = userId % 2 === 0; // 50/50 split
+  const baseURL = isVariantB ? 'https://api-variant-b.com' : 'https://api-variant-a.com';
+  
+  const proxy = createProxyController({
+    baseURL: baseURL,
+    headers: (req) => ({
+      'Authorization': req.headers.authorization,
+      'X-Variant': isVariantB ? 'B' : 'A'
+    })
+  });
+  
+  proxy()(req, res, next);
 });
 ```
 
