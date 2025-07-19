@@ -1,7 +1,5 @@
 # Express Simple Proxy
 
-A simple, powerful, and TypeScript-ready Express.js proxy middleware with comprehensive error handling, request/response transformation, and file upload support.
-
 [![npm version](https://badge.fury.io/js/express-simple-proxy.svg)](https://badge.fury.io/js/express-simple-proxy)
 [![Build Status](https://github.com/nadimtuhin/express-simple-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/nadimtuhin/express-simple-proxy/actions)
 [![Coverage](https://img.shields.io/badge/coverage-93.18%25-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
@@ -10,9 +8,7 @@ A simple, powerful, and TypeScript-ready Express.js proxy middleware with compre
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
 [![Known Vulnerabilities](https://snyk.io/test/github/nadimtuhin/express-simple-proxy/badge.svg)](https://snyk.io/test/github/nadimtuhin/express-simple-proxy)
 
-## TLDR
-
-Express Simple Proxy is a TypeScript-ready Express middleware for proxying API requests with zero configuration needed. Perfect for API gateways and microservices.
+TypeScript-ready Express middleware for proxying API requests with zero configuration needed. Perfect for API gateways and microservices.
 
 **Install:**
 ```bash
