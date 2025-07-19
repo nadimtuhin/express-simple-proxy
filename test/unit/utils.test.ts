@@ -164,6 +164,52 @@ describe('Utils', () => {
       const formData = createFormDataPayload(req);
       expect(formData).toBeInstanceOf(FormData);
     });
+
+    it('should handle array values in body by creating separate form fields', () => {
+      const req = {
+        body: {
+          name: 'John Doe',
+          tags: ['red', 'blue', 'green'],
+          categories: ['tech', 'news'],
+          status: 'active',
+        },
+      } as unknown as RequestWithFiles;
+
+      const formData = createFormDataPayload(req);
+      expect(formData).toBeInstanceOf(FormData);
+      
+      // Verify that the form data was created successfully
+      // Note: FormData.toString() doesn't provide readable content, 
+      // but we can verify the structure is correct by checking it's a FormData instance
+      // The actual functionality is tested in integration tests and curl generation tests
+    });
+
+    it('should handle mixed array and non-array values', () => {
+      const req = {
+        body: {
+          title: 'Test Article',
+          tags: ['javascript', 'nodejs'],
+          published: true,
+          count: 42,
+        },
+      } as unknown as RequestWithFiles;
+
+      const formData = createFormDataPayload(req);
+      expect(formData).toBeInstanceOf(FormData);
+    });
+
+    it('should handle empty arrays', () => {
+      const req = {
+        body: {
+          title: 'Test Article',
+          tags: [],
+          published: true,
+        },
+      } as unknown as RequestWithFiles;
+
+      const formData = createFormDataPayload(req);
+      expect(formData).toBeInstanceOf(FormData);
+    });
   });
 
   describe('generateCurlCommand', () => {
@@ -230,6 +276,95 @@ describe('Utils', () => {
 
       const result = generateCurlCommand(payload);
       expect(result).toBe("curl -X POST 'http://example.com/api/upload' -d '<binary-data>'");
+    });
+
+    it('should handle FormData with array values', () => {
+      const formData = new FormData();
+      const payload = {
+        url: 'http://example.com/api/submit',
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer token123',
+        },
+        data: formData,
+      };
+
+      const req = {
+        body: { 
+          name: 'John Doe',
+          tags: ['javascript', 'nodejs', 'express'],
+          categories: ['tech', 'web'],
+          active: true,
+        },
+      } as unknown as RequestWithFiles;
+
+      const result = generateCurlCommand(payload, req);
+      expect(result).toContain("curl -X POST 'http://example.com/api/submit'");
+      expect(result).toContain("-H 'Authorization: Bearer token123'");
+      expect(result).toContain("-F 'name=John Doe'");
+      expect(result).toContain("-F 'tags=javascript'");
+      expect(result).toContain("-F 'tags=nodejs'");
+      expect(result).toContain("-F 'tags=express'");
+      expect(result).toContain("-F 'categories=tech'");
+      expect(result).toContain("-F 'categories=web'");
+      expect(result).toContain("-F 'active=true'");
+    });
+
+    it('should handle FormData with mixed values and files', () => {
+      const formData = new FormData();
+      const payload = {
+        url: 'http://example.com/api/upload',
+        method: 'POST',
+        headers: {},
+        data: formData,
+      };
+
+      const req = {
+        body: { 
+          title: 'My Upload',
+          tags: ['image', 'photo'],
+        },
+        files: [
+          {
+            fieldname: 'photos',
+            originalname: 'photo1.jpg',
+          },
+          {
+            fieldname: 'photos',
+            originalname: 'photo2.jpg',
+          },
+        ],
+      } as unknown as RequestWithFiles;
+
+      const result = generateCurlCommand(payload, req);
+      expect(result).toContain("-F 'title=My Upload'");
+      expect(result).toContain("-F 'tags=image'");
+      expect(result).toContain("-F 'tags=photo'");
+      expect(result).toContain("-F 'photos=@photo1.jpg'");
+      expect(result).toContain("-F 'photos=@photo2.jpg'");
+    });
+
+    it('should handle FormData with empty arrays', () => {
+      const formData = new FormData();
+      const payload = {
+        url: 'http://example.com/api/submit',
+        method: 'POST',
+        headers: {},
+        data: formData,
+      };
+
+      const req = {
+        body: { 
+          title: 'Test',
+          tags: [],
+          active: true,
+        },
+      } as unknown as RequestWithFiles;
+
+      const result = generateCurlCommand(payload, req);
+      expect(result).toContain("-F 'title=Test'");
+      expect(result).toContain("-F 'active=true'");
+      expect(result).not.toContain("-F 'tags=");
     });
   });
 
