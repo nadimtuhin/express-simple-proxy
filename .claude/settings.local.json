@@ -21,7 +21,8 @@
       "Bash(npm run lint)",
       "Bash(npm test:*)",
       "Bash(git pull:*)",
-      "Bash(npm:*)"
+      "Bash(npm:*)",
+      "Bash(gh release create:*)"
     ],
     "deny": []
   }

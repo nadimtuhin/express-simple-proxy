@@ -291,6 +291,75 @@ app.get('/api/users', userService());
 app.get('/api/notifications', notificationService());
 ```
 
+## Cookbook
+
+A comprehensive collection of practical examples for common use cases. See the **[Complete Cookbook](./COOKBOOK.md)** for detailed recipes.
+
+### Quick Examples
+
+**Authentication & Security:**
+```typescript
+// JWT Token Forwarding
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: (req) => ({
+    'Authorization': req.headers.authorization,
+    'X-User-ID': req.user?.id,
+    'X-Request-ID': crypto.randomUUID()
+  })
+});
+```
+
+**File Uploads:**
+```typescript
+import multer from 'multer';
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+app.post('/upload', upload.single('file'), proxy('/api/upload'));
+```
+
+**Load Balancing:**
+```typescript
+const servers = ['https://api1.com', 'https://api2.com', 'https://api3.com'];
+let current = 0;
+
+const proxy = createProxyController({
+  baseURL: () => servers[current++ % servers.length],
+  headers: (req) => ({ 'Authorization': req.headers.authorization })
+});
+```
+
+**Performance Monitoring:**
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  errorHandlerHook: async (error, req, res) => {
+    console.log({
+      method: req.method,
+      path: req.path,
+      duration: Date.now() - req.startTime,
+      status: error.status
+    });
+    return error;
+  }
+});
+```
+
+**📖 [View Complete Cookbook](./COOKBOOK.md)** - Contains 50+ recipes for:
+- Authentication & Security (JWT, API Keys, OAuth2)
+- File Handling (Uploads, Validation, Chunking)
+- Database & Caching (Sharding, Redis, Cache Control)
+- Monitoring & Observability (Tracing, Metrics, Health Checks)
+- Load Balancing & Failover (Round Robin, Circuit Breakers)
+- Development & Testing (Mocking, A/B Testing, Feature Flags)
+- Rate Limiting & Throttling (Per-user, Distributed)
+- WebSockets & Real-time (SSE, WebRTC)
+- Data Transformation (Schema Validation, GraphQL)
+- Content Negotiation (Accept Headers, Compression)
+
 ## Error Handling
 
 ### Error Types
