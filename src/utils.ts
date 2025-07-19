@@ -97,7 +97,12 @@ export function createFormDataPayload(req: RequestWithFiles): FormData {
     Object.keys(req.body).forEach(key => {
       const value = req.body[key];
       if (value !== undefined && value !== null) {
-        bodyFormData.append(key, String(value));
+        if (Array.isArray(value)) {
+          // Handle arrays by appending each value separately
+          value.forEach(v => bodyFormData.append(key, String(v)));
+        } else {
+          bodyFormData.append(key, String(value));
+        }
       }
     });
   }
@@ -149,7 +154,13 @@ export function generateCurlCommand(payload: CurlCommandOptions, req?: RequestWi
       // Add body fields
       if (req?.body) {
         Object.keys(req.body).forEach(key => {
-          formFields.push(`-F '${key}=${req.body[key]}'`);
+          const value = req.body[key];
+          if (Array.isArray(value)) {
+            // Handle arrays by generating separate -F flags for each value
+            value.forEach(v => formFields.push(`-F '${key}=${v}'`));
+          } else {
+            formFields.push(`-F '${key}=${value}'`);
+          }
         });
       }
 
