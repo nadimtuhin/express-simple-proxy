@@ -17,6 +17,25 @@ TypeScript-ready Express middleware for proxying API requests with zero configur
 npm install express-simple-proxy
 ```
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+- [Configuration](#configuration)
+- [Advanced Usage](#advanced-usage)
+- [Use Cases & Examples](#use-cases--examples)
+- [Lifecycle Hooks](#lifecycle-hooks)
+  - [beforeRequest](#beforerequest--mutate-or-short-circuit)
+  - [onResponse](#onresponse--traffic-stats-callback)
+  - [Granular Error Codes](#granular-error-codes)
+- [Error Handling](#error-handling)
+- [API Reference](#api-reference)
+  - [Types](#types)
+  - [Utility Functions](#utility-functions)
+  - [Error Classification Helpers](#error-classification-helpers)
+- [Development & Testing](#development--testing)
+- [Contributing](#contributing)
+
 ## Quick Start
 
 ### 1. Basic Proxy
