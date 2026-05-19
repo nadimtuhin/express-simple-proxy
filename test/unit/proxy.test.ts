@@ -105,7 +105,7 @@ describe('Proxy', () => {
 
       await expect(axiosProxyRequest(payload)).rejects.toMatchObject({
         status: 503,
-        code: 'NETWORK_ERROR',
+        code: 'UPSTREAM_TIMEOUT',
       });
     });
 
@@ -490,6 +490,296 @@ describe('Proxy', () => {
       expect(mockRes.set).toHaveBeenCalledWith({
         'x-forwarded-header': 'value',
       });
+    });
+  });
+
+  describe('beforeRequest hook', () => {
+    let mockReq: RequestWithFiles;
+    let mockRes: Partial<Response>;
+    let mockNext: jest.Mock;
+
+    beforeEach(() => {
+      mockReq = {
+        method: 'GET',
+        path: '/users',
+        query: {},
+        params: {},
+        body: {},
+        is: jest.fn(),
+        locals: {},
+      } as any;
+      mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+      };
+      mockNext = jest.fn();
+    });
+
+    it('should short-circuit and return custom response without hitting upstream', async () => {
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        beforeRequest: () => ({ status: 202, data: { cached: true } }),
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await middleware(mockReq, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(202);
+      expect(mockRes.json).toHaveBeenCalledWith({ cached: true });
+    });
+
+    it('should short-circuit with custom headers', async () => {
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        beforeRequest: () => ({
+          status: 200,
+          data: { ok: true },
+          headers: { 'x-cache': 'HIT' },
+        }),
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await middleware(mockReq, mockRes as Response, mockNext);
+
+      expect(mockRes.set).toHaveBeenCalledWith({ 'x-cache': 'HIT' });
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should proceed to upstream when hook returns void', async () => {
+      const mockData = { id: 1 };
+      nock('http://example.com').get('/users').reply(200, mockData);
+
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        beforeRequest: () => undefined,
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await middleware(mockReq, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith(mockData);
+    });
+
+    it('should allow hook to mutate payload headers', async () => {
+      nock('http://example.com')
+        .get('/users')
+        .matchHeader('x-injected', 'yes')
+        .reply(200, { ok: true });
+
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        beforeRequest: payload => {
+          payload.headers['x-injected'] = 'yes';
+        },
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await middleware(mockReq, mockRes as Response, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+    });
+  });
+
+  describe('onResponse callback', () => {
+    let mockReq: RequestWithFiles;
+    let mockRes: Partial<Response>;
+    let mockNext: jest.Mock;
+
+    beforeEach(() => {
+      mockReq = {
+        method: 'GET',
+        path: '/users',
+        query: {},
+        params: {},
+        body: {},
+        is: jest.fn(),
+        locals: {},
+      } as any;
+      mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+      };
+      mockNext = jest.fn();
+    });
+
+    it('should call onResponse with upstream stats on success', async () => {
+      nock('http://example.com').get('/users').reply(200, { id: 1 });
+
+      const onResponse = jest.fn();
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        onResponse,
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await middleware(mockReq, mockRes as Response, mockNext);
+
+      expect(onResponse).toHaveBeenCalledTimes(1);
+      const stats = onResponse.mock.calls[0][0];
+      expect(stats.status).toBe(200);
+      expect(stats.source).toBe('upstream');
+      expect(typeof stats.durationMs).toBe('number');
+      expect(stats.method).toBe('GET');
+    });
+
+    it('should call onResponse with short-circuit stats', async () => {
+      const onResponse = jest.fn();
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        beforeRequest: () => ({ status: 202, data: {} }),
+        onResponse,
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await middleware(mockReq, mockRes as Response, mockNext);
+
+      expect(onResponse).toHaveBeenCalledTimes(1);
+      expect(onResponse.mock.calls[0][0].source).toBe('short-circuit');
+      expect(onResponse.mock.calls[0][0].status).toBe(202);
+    });
+
+    it('should call onResponse on error path', async () => {
+      nock('http://example.com').get('/users').reply(404, { message: 'Not found' });
+
+      const onResponse = jest.fn();
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        onResponse,
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await middleware(mockReq, mockRes as Response, mockNext);
+
+      expect(onResponse).toHaveBeenCalledTimes(1);
+      expect(onResponse.mock.calls[0][0].status).toBe(404);
+      expect(onResponse.mock.calls[0][0].source).toBe('upstream');
+    });
+
+    it('should fire exactly once per request', async () => {
+      nock('http://example.com').get('/users').reply(200, { id: 1 });
+
+      const onResponse = jest.fn();
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        onResponse,
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await middleware(mockReq, mockRes as Response, mockNext);
+
+      expect(onResponse).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow errors thrown by onResponse callback', async () => {
+      nock('http://example.com').get('/users').reply(200, { id: 1 });
+
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        onResponse: () => {
+          throw new Error('callback fail');
+        },
+      };
+
+      const controller = createProxyController(config);
+      const middleware = controller();
+
+      await expect(middleware(mockReq, mockRes as Response, mockNext)).resolves.toBeUndefined();
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(consoleSpy).toHaveBeenCalled();
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('granular error codes', () => {
+    it('should set UPSTREAM_AUTH code for 401 responses', async () => {
+      nock('http://example.com').get('/users').reply(401, { message: 'Unauthorized' });
+
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+      };
+
+      const mockReq = {
+        method: 'GET',
+        path: '/users',
+        query: {},
+        params: {},
+        body: {},
+        is: jest.fn(),
+        locals: {},
+      } as any;
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+      } as unknown as Response;
+      const mockNext = jest.fn();
+
+      const controller = createProxyController(config);
+      await controller()(mockReq, mockRes, mockNext);
+
+      const jsonArg = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(jsonArg.error.code).toBe('UPSTREAM_AUTH');
+    });
+
+    it('should set UPSTREAM_AUTH code for 403 responses', async () => {
+      nock('http://example.com').get('/users').reply(403, { message: 'Forbidden' });
+
+      const config: ProxyConfig = {
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+      };
+
+      const mockReq = {
+        method: 'GET',
+        path: '/users',
+        query: {},
+        params: {},
+        body: {},
+        is: jest.fn(),
+        locals: {},
+      } as any;
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+      } as unknown as Response;
+      const mockNext = jest.fn();
+
+      const controller = createProxyController(config);
+      await controller()(mockReq, mockRes, mockNext);
+
+      const jsonArg = (mockRes.json as jest.Mock).mock.calls[0][0];
+      expect(jsonArg.error.code).toBe('UPSTREAM_AUTH');
     });
   });
 });

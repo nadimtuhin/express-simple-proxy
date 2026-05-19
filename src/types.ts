@@ -2,6 +2,41 @@ import { Request, Response, NextFunction } from 'express';
 import { Readable } from 'stream';
 import { AxiosResponse } from 'axios';
 
+export type ProxyErrorCode =
+  | 'UPSTREAM_TIMEOUT'
+  | 'UPSTREAM_UNREACHABLE'
+  | 'NETWORK_ERROR'
+  | 'UPSTREAM_AUTH'
+  | 'REQUEST_ERROR'
+  | 'UNKNOWN_ERROR';
+
+export interface ShortCircuitResponse {
+  status: number;
+  data: unknown;
+  headers?: Record<string, string>;
+  statusText?: string;
+}
+
+export interface ProxyStats {
+  url: string;
+  method: string;
+  status: number;
+  durationMs: number;
+  responseSizeBytes?: number;
+  source: 'upstream' | 'short-circuit';
+}
+
+export type BeforeRequestHook = (
+  payload: ProxyRequestPayload,
+  req: RequestWithFiles
+) => void | ShortCircuitResponse | Promise<void | ShortCircuitResponse>;
+
+export type OnResponseCallback = (
+  stats: ProxyStats,
+  req: RequestWithFiles,
+  res: Response
+) => void | Promise<void>;
+
 export interface ProxyConfig {
   baseURL: string;
   headers: (req: Request) => Record<string, string>;
@@ -9,6 +44,8 @@ export interface ProxyConfig {
   responseHeaders?: (response: AxiosResponse) => Record<string, string>;
   errorHandler?: ErrorHandler;
   errorHandlerHook?: ErrorHandlerHook;
+  beforeRequest?: BeforeRequestHook;
+  onResponse?: OnResponseCallback;
 }
 
 export interface ProxyError extends Error {

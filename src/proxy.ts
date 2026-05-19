@@ -3,6 +3,7 @@ import { Response } from 'express';
 import {
   ProxyConfig,
   ProxyError,
+  ProxyStats,
   ProxyResponse,
   ProxyRequestPayload,
   RequestWithLocals,
@@ -14,12 +15,20 @@ import {
 } from './types';
 import {
   urlJoin,
-  replaceUrlTemplate,
   buildQueryString,
   createFormDataPayload,
   generateCurlCommand,
   asyncWrapper,
+  parseSize,
+  resolveProxyPath,
 } from './utils';
+import {
+  classifyResponseError,
+  classifyNetworkError,
+  isShortCircuitResponse,
+  buildErrorResponseBody,
+  filterProxyResponseHeaders,
+} from './errors';
 
 /**
  * Make HTTP request using axios with enhanced error handling
@@ -45,25 +54,11 @@ export async function axiosProxyRequest(payload: ProxyRequestPayload): Promise<P
   } catch (error) {
     const axiosError = error as AxiosError;
 
-    // Enhanced error handling with proper status codes
     if (axiosError.response) {
-      // Server responded with error status
-      const enhancedError: ProxyError = new Error(
-        ((axiosError.response.data as Record<string, unknown>)?.message as string) ||
-          axiosError.message
-      );
-      enhancedError.status = axiosError.response.status;
-      enhancedError.data = axiosError.response.data;
-      enhancedError.headers = axiosError.response.headers as Record<string, string>;
-      throw enhancedError;
+      throw classifyResponseError(axiosError);
     } else if (axiosError.request) {
-      // Request was made but no response received
-      const enhancedError: ProxyError = new Error('Network error: No response received');
-      enhancedError.status = 503;
-      enhancedError.code = 'NETWORK_ERROR';
-      throw enhancedError;
+      throw classifyNetworkError(axiosError);
     } else {
-      // Error setting up the request
       const enhancedError: ProxyError = new Error(`Request setup error: ${axiosError.message}`);
       enhancedError.status = 500;
       enhancedError.code = 'REQUEST_ERROR';
@@ -81,20 +76,13 @@ export function defaultErrorHandler(
   res: Response
 ): void {
   const status = error.status || 500;
-  const errorResponse = {
-    error: {
-      message: error.message || 'Internal server error',
-      code: error.code || 'UNKNOWN_ERROR',
-      ...(error.data ? { details: error.data } : {}),
-    },
-  };
+  const errorResponse = buildErrorResponseBody(error);
 
   // Forward original headers if available
   if (error.headers) {
-    Object.keys(error.headers).forEach(header => {
-      if (header.toLowerCase() !== 'content-length' && error.headers) {
-        res.set(header, error.headers[header]);
-      }
+    const filtered = filterProxyResponseHeaders(error.headers);
+    Object.entries(filtered).forEach(([name, value]) => {
+      res.set(name, value);
     });
   }
 
@@ -126,50 +114,53 @@ function validateConfig(config: ProxyConfig): void {
   }
 }
 
-/**
- * Create proxy controller with given configuration
- */
 export function createProxyController(config: ProxyConfig): ProxyController {
-  // Validate configuration
   validateConfig(config);
 
-  const { errorHandler = defaultErrorHandler, errorHandlerHook } = config;
+  const {
+    errorHandler = defaultErrorHandler,
+    errorHandlerHook,
+    beforeRequest,
+    onResponse,
+  } = config;
 
   return function proxyController(proxyPath?: string, handler?: ResponseHandler | boolean) {
     return asyncWrapper(async (req: RequestWithLocals, res: Response): Promise<void> => {
-      const qs = buildQueryString(req.query);
-      let modifiedProxyPath = '';
+      const startedAt = Date.now();
+      let statsFired = false;
+      const reqWithFiles = req as RequestWithFiles;
 
-      if (proxyPath) {
-        modifiedProxyPath = replaceUrlTemplate(proxyPath, req.params);
-      } else {
-        modifiedProxyPath = req.path;
-      }
+      const fireStats = async (stats: ProxyStats): Promise<void> => {
+        if (statsFired || !onResponse) {
+          return;
+        }
+        statsFired = true;
+        try {
+          await onResponse(stats, reqWithFiles, res);
+        } catch (err) {
+          console.error('onResponse callback error:', err);
+        }
+      };
+
+      const qs = buildQueryString(req.query);
+      const modifiedProxyPath = resolveProxyPath(proxyPath, req.path, req.params);
 
       const payload: ProxyRequestPayload = {
         url: urlJoin(config.baseURL, modifiedProxyPath, qs),
-        headers: { ...config.headers(req) }, // Clone headers to avoid mutation
+        headers: { ...config.headers(req) },
         method: req.method,
         timeout: config.timeout || DEFAULT_TIMEOUT,
       };
 
-      // Handle request body for POST/PUT/PATCH/DELETE methods
       if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
         const useFormData = req.is('multipart/form-data');
-        const requestWithFiles = req as RequestWithFiles;
 
         if (useFormData) {
-          // Handle as form data
-          const bodyFormData = createFormDataPayload(requestWithFiles);
+          const bodyFormData = createFormDataPayload(reqWithFiles);
           payload.data = bodyFormData;
-
-          // Get proper boundary from FormData headers
-          const formDataHeaders = bodyFormData.getHeaders();
-          Object.assign(payload.headers, formDataHeaders);
+          Object.assign(payload.headers, bodyFormData.getHeaders());
         } else {
-          // Handle as JSON
           payload.data = JSON.stringify(req.body);
-          // Ensure Content-Type is set for JSON if not already present
           if (!payload.headers['Content-Type']) {
             payload.headers['Content-Type'] = 'application/json';
           }
@@ -177,54 +168,81 @@ export function createProxyController(config: ProxyConfig): ProxyController {
       }
 
       try {
-        // Log curl command in development mode
         if (process.env.NODE_ENV === 'development') {
           // eslint-disable-next-line no-console
-          console.log('🔄 Proxy Request:', generateCurlCommand(payload, req as RequestWithFiles));
+          console.log('🔄 Proxy Request:', generateCurlCommand(payload, reqWithFiles));
+        }
+
+        if (beforeRequest) {
+          const hookResult = await beforeRequest(payload, reqWithFiles);
+          if (isShortCircuitResponse(hookResult)) {
+            const sc = hookResult;
+            if (sc.headers) {
+              res.set(sc.headers);
+            }
+            res.status(sc.status).json(sc.data);
+            await fireStats({
+              url: payload.url,
+              method: payload.method,
+              status: sc.status,
+              durationMs: Date.now() - startedAt,
+              source: 'short-circuit',
+            });
+            return;
+          }
         }
 
         const remoteResponse = await axiosProxyRequest(payload);
 
         if (!handler) {
-          // Set status code before sending response
           res.status(remoteResponse.status);
-
           if (config.responseHeaders) {
             res.set(config.responseHeaders(remoteResponse));
           }
-
           res.json(remoteResponse.data);
         } else if (typeof handler === 'function') {
           await handler(req, res, remoteResponse);
         } else {
-          // For handler === true, return raw response
           res.json(remoteResponse.data);
         }
+
+        const size = parseSize(remoteResponse.headers['content-length']);
+        await fireStats({
+          url: payload.url,
+          method: payload.method,
+          status: remoteResponse.status,
+          durationMs: Date.now() - startedAt,
+          ...(size !== undefined ? { responseSizeBytes: size } : {}),
+          source: 'upstream',
+        });
       } catch (error) {
         let processedError = error as ProxyError;
 
-        // Apply error handler hook if provided
         if (errorHandlerHook) {
           try {
             const hookResult = await errorHandlerHook(processedError, req, res);
-            // If hook returns an error object, use it; otherwise keep original
             if (hookResult && (hookResult instanceof Error || 'message' in hookResult)) {
               processedError = hookResult;
             }
           } catch (hookError) {
-            // If hook itself throws, log it but continue with original error
             console.error('Error handler hook failed:', hookError);
           }
         }
 
-        // Use custom error handler or default
         try {
           await errorHandler(processedError, req, res);
         } catch (handlerError) {
-          // If custom error handler fails, fall back to default
           console.error('Custom error handler failed:', handlerError);
           defaultErrorHandler(processedError, req, res);
         }
+
+        await fireStats({
+          url: payload.url,
+          method: payload.method,
+          status: processedError.status ?? 500,
+          durationMs: Date.now() - startedAt,
+          source: 'upstream',
+        });
       }
     });
   };
