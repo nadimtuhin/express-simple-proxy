@@ -9,14 +9,30 @@ export {
   createFormDataPayload,
   generateCurlCommand,
   asyncWrapper,
+  parseSize,
+  resolveProxyPath,
 } from './utils';
+
+// Error classification helpers
+export {
+  classifyResponseError,
+  classifyNetworkError,
+  isShortCircuitResponse,
+  buildErrorResponseBody,
+  filterProxyResponseHeaders,
+} from './errors';
 
 // Types and interfaces
 export type {
   ProxyConfig,
   ProxyError,
+  ProxyErrorCode,
   ProxyResponse,
   ProxyRequestPayload,
+  ProxyStats,
+  ShortCircuitResponse,
+  BeforeRequestHook,
+  OnResponseCallback,
   CurlCommandOptions,
   RequestWithLocals,
   RequestWithFiles,

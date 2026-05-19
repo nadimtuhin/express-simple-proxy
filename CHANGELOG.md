@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-20
+
 ### Added
 - `beforeRequest` hook — mutate the proxy payload (URL, headers, data, timeout) or return a `ShortCircuitResponse` to skip the upstream call entirely
 - `onResponse` stats callback — fires exactly once per request on every terminal path (upstream success, short-circuit, error) with `ProxyStats` containing URL, method, status, duration, optional response size, and source
