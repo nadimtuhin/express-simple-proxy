@@ -1,10 +1,6 @@
 import nock from 'nock';
 import { Response } from 'express';
-import {
-  axiosProxyRequest,
-  createProxyController,
-  defaultErrorHandler,
-} from '../../src/proxy';
+import { axiosProxyRequest, createProxyController, defaultErrorHandler } from '../../src/proxy';
 import { ProxyConfig, ProxyError, RequestWithFiles } from '../../src/types';
 
 describe('Proxy', () => {
@@ -15,9 +11,7 @@ describe('Proxy', () => {
   describe('axiosProxyRequest', () => {
     it('should make successful GET request', async () => {
       const mockData = { id: 1, name: 'John Doe' };
-      nock('http://example.com')
-        .get('/api/users/1')
-        .reply(200, mockData);
+      nock('http://example.com').get('/api/users/1').reply(200, mockData);
 
       const payload = {
         url: 'http://example.com/api/users/1',
@@ -34,10 +28,8 @@ describe('Proxy', () => {
     it('should make successful POST request', async () => {
       const requestData = { name: 'John Doe' };
       const responseData = { id: 1, name: 'John Doe' };
-      
-      nock('http://example.com')
-        .post('/api/users', requestData)
-        .reply(201, responseData);
+
+      nock('http://example.com').post('/api/users', requestData).reply(201, responseData);
 
       const payload = {
         url: 'http://example.com/api/users',
@@ -53,9 +45,7 @@ describe('Proxy', () => {
     });
 
     it('should handle 404 error', async () => {
-      nock('http://example.com')
-        .get('/api/users/999')
-        .reply(404, { message: 'User not found' });
+      nock('http://example.com').get('/api/users/999').reply(404, { message: 'User not found' });
 
       const payload = {
         url: 'http://example.com/api/users/999',
@@ -71,9 +61,7 @@ describe('Proxy', () => {
     });
 
     it('should handle 500 error', async () => {
-      nock('http://example.com')
-        .get('/api/users')
-        .reply(500, { message: 'Internal server error' });
+      nock('http://example.com').get('/api/users').reply(500, { message: 'Internal server error' });
 
       const payload = {
         url: 'http://example.com/api/users',
@@ -89,9 +77,7 @@ describe('Proxy', () => {
     });
 
     it('should handle network error', async () => {
-      nock('http://example.com')
-        .get('/api/users')
-        .replyWithError('Network error');
+      nock('http://example.com').get('/api/users').replyWithError('Network error');
 
       const payload = {
         url: 'http://example.com/api/users',
@@ -108,10 +94,7 @@ describe('Proxy', () => {
     });
 
     it('should handle timeout', async () => {
-      nock('http://example.com')
-        .get('/api/users')
-        .delay(6000)
-        .reply(200, {});
+      nock('http://example.com').get('/api/users').delay(6000).reply(200, {});
 
       const payload = {
         url: 'http://example.com/api/users',
@@ -134,7 +117,9 @@ describe('Proxy', () => {
         timeout: 5000,
       };
 
-      await expect(axiosProxyRequest(payload)).rejects.toThrow('url is required for axiosProxyRequest');
+      await expect(axiosProxyRequest(payload)).rejects.toThrow(
+        'url is required for axiosProxyRequest'
+      );
     });
   });
 
@@ -279,13 +264,15 @@ describe('Proxy', () => {
         errorHandlerHook: 'not-a-function',
       } as any;
 
-      expect(() => createProxyController(config)).toThrow('config.errorHandlerHook must be a function');
+      expect(() => createProxyController(config)).toThrow(
+        'config.errorHandlerHook must be a function'
+      );
     });
 
     it('should create proxy controller with valid config', () => {
       const config: ProxyConfig = {
         baseURL: 'http://example.com',
-        headers: () => ({ 'Authorization': 'Bearer token' }),
+        headers: () => ({ Authorization: 'Bearer token' }),
       };
 
       const controller = createProxyController(config);
@@ -297,13 +284,11 @@ describe('Proxy', () => {
 
     it('should handle successful GET request', async () => {
       const mockData = { id: 1, name: 'John' };
-      nock('http://example.com')
-        .get('/users')
-        .reply(200, mockData);
+      nock('http://example.com').get('/users').reply(200, mockData);
 
       const config: ProxyConfig = {
         baseURL: 'http://example.com',
-        headers: () => ({ 'Authorization': 'Bearer token' }),
+        headers: () => ({ Authorization: 'Bearer token' }),
       };
 
       const controller = createProxyController(config);
@@ -318,9 +303,7 @@ describe('Proxy', () => {
 
     it('should handle custom proxy path', async () => {
       const mockData = { id: 1, name: 'John' };
-      nock('http://example.com')
-        .get('/api/users')
-        .reply(200, mockData);
+      nock('http://example.com').get('/api/users').reply(200, mockData);
 
       const config: ProxyConfig = {
         baseURL: 'http://example.com',
@@ -338,9 +321,7 @@ describe('Proxy', () => {
 
     it('should handle URL parameters', async () => {
       const mockData = { id: 123, name: 'John' };
-      nock('http://example.com')
-        .get('/api/users/123')
-        .reply(200, mockData);
+      nock('http://example.com').get('/api/users/123').reply(200, mockData);
 
       mockReq.params = { id: '123' };
 
@@ -384,10 +365,8 @@ describe('Proxy', () => {
     it('should handle POST request with JSON body', async () => {
       const requestData = { name: 'John Doe' };
       const responseData = { id: 1, name: 'John Doe' };
-      
-      nock('http://example.com')
-        .post('/users', requestData)
-        .reply(201, responseData);
+
+      nock('http://example.com').post('/users', requestData).reply(201, responseData);
 
       mockReq.method = 'POST';
       mockReq.body = requestData;
@@ -409,9 +388,7 @@ describe('Proxy', () => {
 
     it('should handle custom response handler', async () => {
       const mockData = { id: 1, name: 'John' };
-      nock('http://example.com')
-        .get('/users')
-        .reply(200, mockData);
+      nock('http://example.com').get('/users').reply(200, mockData);
 
       const customHandler = jest.fn();
       const config: ProxyConfig = {
@@ -424,17 +401,19 @@ describe('Proxy', () => {
 
       await middleware(mockReq, mockRes as Response, mockNext);
 
-      expect(customHandler).toHaveBeenCalledWith(mockReq, mockRes, expect.objectContaining({
-        status: 200,
-        data: mockData,
-      }));
+      expect(customHandler).toHaveBeenCalledWith(
+        mockReq,
+        mockRes,
+        expect.objectContaining({
+          status: 200,
+          data: mockData,
+        })
+      );
       expect(mockRes.json).not.toHaveBeenCalled();
     });
 
     it('should handle errors with custom error handler', async () => {
-      nock('http://example.com')
-        .get('/users')
-        .reply(500, { message: 'Server error' });
+      nock('http://example.com').get('/users').reply(500, { message: 'Server error' });
 
       const customErrorHandler = jest.fn();
       const config: ProxyConfig = {
@@ -459,12 +438,10 @@ describe('Proxy', () => {
     });
 
     it('should handle errors with error handler hook', async () => {
-      nock('http://example.com')
-        .get('/users')
-        .reply(500, { message: 'Server error' });
+      nock('http://example.com').get('/users').reply(500, { message: 'Server error' });
 
       const customErrorHandler = jest.fn();
-      const errorHandlerHook = jest.fn().mockImplementation((error) => {
+      const errorHandlerHook = jest.fn().mockImplementation(error => {
         error.context = 'Added by hook';
         return error;
       });
@@ -493,17 +470,14 @@ describe('Proxy', () => {
       );
     });
 
-
     it('should handle response headers configuration', async () => {
       const mockData = { id: 1, name: 'John' };
-      nock('http://example.com')
-        .get('/users')
-        .reply(200, mockData, { 'x-custom-header': 'value' });
+      nock('http://example.com').get('/users').reply(200, mockData, { 'x-custom-header': 'value' });
 
       const config: ProxyConfig = {
         baseURL: 'http://example.com',
         headers: () => ({}),
-        responseHeaders: (response) => ({
+        responseHeaders: response => ({
           'x-forwarded-header': response.headers['x-custom-header'],
         }),
       };

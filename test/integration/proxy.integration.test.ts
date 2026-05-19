@@ -554,6 +554,60 @@ describe('Proxy Integration Tests', () => {
     });
   });
 
+  describe('Content-Type boundary collision', () => {
+    it('should use correct form-data boundary when config.headers sets Content-Type (title-case)', async () => {
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        // Simulates a user who sets Content-Type in their headers function (title-case)
+        headers: () => ({ 'Content-Type': 'text/plain' }),
+      };
+
+      const proxy = createProxyController(config);
+      app.post('/upload', proxy() as any);
+
+      const response = await request(app)
+        .post('/upload')
+        .attach('file', Buffer.from('test file content'), 'boundary-test.txt')
+        .expect(200);
+
+      expect(response.body.data.filename).toBe('boundary-test.txt');
+    });
+
+    it('should use correct form-data boundary when config.headers sets content-type (lowercase)', async () => {
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({ 'content-type': 'text/plain' }),
+      };
+
+      const proxy = createProxyController(config);
+      app.post('/upload', proxy() as any);
+
+      const response = await request(app)
+        .post('/upload')
+        .attach('file', Buffer.from('test file content'), 'boundary-lowercase.txt')
+        .expect(200);
+
+      expect(response.body.data.filename).toBe('boundary-lowercase.txt');
+    });
+
+    it('should use correct form-data boundary when config.headers sets CONTENT-TYPE (uppercase)', async () => {
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({ 'CONTENT-TYPE': 'text/plain' }),
+      };
+
+      const proxy = createProxyController(config);
+      app.post('/upload', proxy() as any);
+
+      const response = await request(app)
+        .post('/upload')
+        .attach('file', Buffer.from('test file content'), 'boundary-upper.txt')
+        .expect(200);
+
+      expect(response.body.data.filename).toBe('boundary-upper.txt');
+    });
+  });
+
   describe('Advanced Features', () => {
     it('should handle custom proxy path mapping', async () => {
       const config: ProxyConfig = {
