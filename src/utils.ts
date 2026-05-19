@@ -115,6 +115,16 @@ export function createFormDataPayload(req: RequestWithFiles): FormData {
         filename: file.originalname,
       });
     });
+  } else if (req.files && !Array.isArray(req.files)) {
+    // multer.fields() produces { [fieldname]: FileUpload[] }
+    Object.values(req.files)
+      .flat()
+      .forEach(file => {
+        bodyFormData.append(file.fieldname, file.buffer, {
+          contentType: file.mimetype,
+          filename: file.originalname,
+        });
+      });
   } else if (req.file) {
     bodyFormData.append(req.file.fieldname, req.file.buffer, {
       contentType: req.file.mimetype,
@@ -169,6 +179,13 @@ export function generateCurlCommand(payload: CurlCommandOptions, req?: RequestWi
         req.files.forEach(file => {
           formFields.push(`-F '${file.fieldname}=@${file.originalname}'`);
         });
+      } else if (req?.files && !Array.isArray(req.files)) {
+        // multer.fields() produces { [fieldname]: FileUpload[] }
+        Object.values(req.files)
+          .flat()
+          .forEach(file => {
+            formFields.push(`-F '${file.fieldname}=@${file.originalname}'`);
+          });
       } else if (req?.file) {
         formFields.push(`-F '${req.file.fieldname}=@${req.file.originalname}'`);
       }

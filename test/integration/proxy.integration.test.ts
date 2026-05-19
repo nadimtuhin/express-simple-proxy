@@ -29,7 +29,7 @@ describe('Proxy Integration Tests', () => {
     app = express();
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
-    
+
     // Configure multer for file uploads
     const storage = multer.memoryStorage();
     const upload = multer({ storage });
@@ -46,9 +46,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/health', proxy() as any);
 
-      const response = await request(app)
-        .get('/health')
-        .expect(200);
+      const response = await request(app).get('/health').expect(200);
 
       expect(response.body).toEqual({
         status: 'ok',
@@ -65,9 +63,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/users', proxy() as any);
 
-      const response = await request(app)
-        .get('/users?page=1&limit=5&search=john')
-        .expect(200);
+      const response = await request(app).get('/users?page=1&limit=5&search=john').expect(200);
 
       expect(response.body.data).toHaveLength(1);
       expect(response.body.data[0].name).toContain('John');
@@ -88,9 +84,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/users/:id', proxy() as any);
 
-      const response = await request(app)
-        .get('/users/1')
-        .expect(200);
+      const response = await request(app).get('/users/1').expect(200);
 
       expect(response.body.data).toEqual({
         id: 1,
@@ -113,10 +107,7 @@ describe('Proxy Integration Tests', () => {
         email: 'alice@example.com',
       };
 
-      const response = await request(app)
-        .post('/users')
-        .send(userData)
-        .expect(201);
+      const response = await request(app).post('/users').send(userData).expect(201);
 
       expect(response.body.data).toEqual({
         id: expect.any(Number),
@@ -140,10 +131,7 @@ describe('Proxy Integration Tests', () => {
         email: 'john.updated@example.com',
       };
 
-      const response = await request(app)
-        .put('/users/1')
-        .send(userData)
-        .expect(200);
+      const response = await request(app).put('/users/1').send(userData).expect(200);
 
       expect(response.body.data).toEqual({
         id: 1,
@@ -161,9 +149,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.delete('/users/:id', proxy() as any);
 
-      await request(app)
-        .delete('/users/2')
-        .expect(204);
+      await request(app).delete('/users/2').expect(204);
     });
   });
 
@@ -250,9 +236,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/error/400', proxy() as any);
 
-      const response = await request(app)
-        .get('/error/400')
-        .expect(400);
+      const response = await request(app).get('/error/400').expect(400);
 
       expect(response.body.error).toEqual({
         message: 'This is a simulated 400 error',
@@ -273,9 +257,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/error/404', proxy() as any);
 
-      const response = await request(app)
-        .get('/error/404')
-        .expect(404);
+      const response = await request(app).get('/error/404').expect(404);
 
       expect(response.body.error).toEqual({
         message: 'This is a simulated 404 error',
@@ -296,9 +278,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/error/500', proxy() as any);
 
-      const response = await request(app)
-        .get('/error/500')
-        .expect(500);
+      const response = await request(app).get('/error/500').expect(500);
 
       expect(response.body.error).toEqual({
         message: 'This is a simulated 500 error',
@@ -328,9 +308,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/error/400', proxy() as any);
 
-      const response = await request(app)
-        .get('/error/400')
-        .expect(400);
+      const response = await request(app).get('/error/400').expect(400);
 
       expect(response.body).toEqual({
         success: false,
@@ -342,7 +320,7 @@ describe('Proxy Integration Tests', () => {
     });
 
     it('should handle error handler hook', async () => {
-      const errorHandlerHook = jest.fn().mockImplementation((error) => {
+      const errorHandlerHook = jest.fn().mockImplementation(error => {
         error.context = 'Added by hook';
         return error;
       });
@@ -356,9 +334,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/error/400', proxy() as any);
 
-      await request(app)
-        .get('/error/400')
-        .expect(400);
+      await request(app).get('/error/400').expect(400);
 
       expect(errorHandlerHook).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -389,9 +365,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/users/:id', proxy(undefined, customHandler) as any);
 
-      const response = await request(app)
-        .get('/users/1')
-        .expect(200);
+      const response = await request(app).get('/users/1').expect(200);
 
       expect(customHandler).toHaveBeenCalled();
       expect(response.body).toEqual({
@@ -414,9 +388,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/users/:id', proxy(undefined, true) as any);
 
-      const response = await request(app)
-        .get('/users/1')
-        .expect(200);
+      const response = await request(app).get('/users/1').expect(200);
 
       expect(response.body).toEqual({
         data: {
@@ -432,8 +404,8 @@ describe('Proxy Integration Tests', () => {
     it('should forward request headers', async () => {
       const config: ProxyConfig = {
         baseURL: testServerUrl,
-        headers: (req) => ({
-          'Authorization': req.headers.authorization || '',
+        headers: req => ({
+          Authorization: req.headers.authorization || '',
           'X-Custom-Header': (req.headers['x-custom-header'] as string) || '',
           'User-Agent': 'express-simple-proxy',
         }),
@@ -466,9 +438,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/users/1', proxy() as any);
 
-      const response = await request(app)
-        .get('/users/1')
-        .expect(200);
+      const response = await request(app).get('/users/1').expect(200);
 
       expect(response.headers['x-proxy-response']).toBe('true');
       expect(response.headers['x-timestamp']).toBeDefined();
@@ -487,7 +457,7 @@ describe('Proxy Integration Tests', () => {
               }
             });
           }
-          
+
           res.status(error.status || 500).json({
             error: error.message,
             retryAfter: error.headers?.['retry-after'],
@@ -502,14 +472,85 @@ describe('Proxy Integration Tests', () => {
       await request(app).get('/rate-limit').expect(200);
       await request(app).get('/rate-limit').expect(200);
       await request(app).get('/rate-limit').expect(200);
-      
-      const response = await request(app)
-        .get('/rate-limit')
-        .expect(429);
+
+      const response = await request(app).get('/rate-limit').expect(429);
 
       expect(response.headers['retry-after']).toBe('60');
       expect(response.headers['x-ratelimit-remaining']).toBe('0');
       expect(response.body.retryAfter).toBe('60');
+    });
+  });
+
+  describe('multer.fields() File Upload Proxy', () => {
+    let fieldsApp: express.Application;
+
+    beforeEach(() => {
+      fieldsApp = express();
+      fieldsApp.use(express.json());
+      fieldsApp.use(express.urlencoded({ extended: true }));
+    });
+
+    it('should proxy multiple files uploaded via multer.fields()', async () => {
+      const storage = multer.memoryStorage();
+      const upload = multer({ storage });
+
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({}),
+      };
+
+      const proxy = createProxyController(config);
+      fieldsApp.post(
+        '/upload-multiple',
+        upload.fields([{ name: 'files', maxCount: 2 }]) as any,
+        proxy() as any
+      );
+
+      const response = await request(fieldsApp)
+        .post('/upload-multiple')
+        .attach('files', Buffer.from('file 1 content'), 'file1.txt')
+        .attach('files', Buffer.from('file 2 content'), 'file2.txt')
+        .expect(200);
+
+      expect(response.body.data).toHaveLength(2);
+      expect(response.body.data[0].filename).toBe('file1.txt');
+      expect(response.body.data[1].filename).toBe('file2.txt');
+    });
+
+    it('should proxy mixed fields and files via multer.fields()', async () => {
+      const storage = multer.memoryStorage();
+      const upload = multer({ storage });
+
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({}),
+      };
+
+      const proxy = createProxyController(config);
+      fieldsApp.post(
+        '/form-data',
+        upload.fields([{ name: 'avatar', maxCount: 1 }]) as any,
+        proxy() as any
+      );
+
+      const response = await request(fieldsApp)
+        .post('/form-data')
+        .field('name', 'Jane Doe')
+        .field('email', 'jane@example.com')
+        .field('description', 'Fields test')
+        .attach('avatar', Buffer.from('avatar bytes'), 'avatar.jpg')
+        .expect(200);
+
+      expect(response.body.data).toEqual({
+        name: 'Jane Doe',
+        email: 'jane@example.com',
+        description: 'Fields test',
+        avatar: {
+          filename: 'avatar.jpg',
+          mimetype: 'image/jpeg',
+          size: expect.any(Number),
+        },
+      });
     });
   });
 
@@ -523,9 +564,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/api/v1/users/:id', proxy('/users/:id') as any);
 
-      const response = await request(app)
-        .get('/api/v1/users/1')
-        .expect(200);
+      const response = await request(app).get('/api/v1/users/1').expect(200);
 
       expect(response.body.data.id).toBe(1);
     });
@@ -546,7 +585,6 @@ describe('Proxy Integration Tests', () => {
 
       expect(response.body.error.code).toBe('NETWORK_ERROR');
     });
-
   });
 
   describe('Edge Cases', () => {
@@ -559,9 +597,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.delete('/users/:id', proxy() as any);
 
-      await request(app)
-        .delete('/users/1')
-        .expect(204);
+      await request(app).delete('/users/1').expect(204);
     });
 
     it('should handle non-existent endpoints', async () => {
@@ -573,9 +609,7 @@ describe('Proxy Integration Tests', () => {
       const proxy = createProxyController(config);
       app.get('/non-existent', proxy() as any);
 
-      const response = await request(app)
-        .get('/non-existent')
-        .expect(404);
+      const response = await request(app).get('/non-existent').expect(404);
 
       expect(response.body.error.message).toContain('not found');
     });
@@ -595,10 +629,7 @@ describe('Proxy Integration Tests', () => {
         description: 'A'.repeat(1000), // 1KB description
       };
 
-      const response = await request(app)
-        .post('/users')
-        .send(largeData)
-        .expect(201);
+      const response = await request(app).post('/users').send(largeData).expect(201);
 
       expect(response.body.data.name).toBe('Test User');
       expect(response.body.data.email).toBe('test@example.com');
