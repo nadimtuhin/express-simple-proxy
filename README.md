@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/express-simple-proxy.svg)](https://badge.fury.io/js/express-simple-proxy)
 [![Build Status](https://github.com/nadimtuhin/express-simple-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/nadimtuhin/express-simple-proxy/actions)
 [![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
-[![Tests](https://img.shields.io/badge/tests-137%20passed-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
+[![Tests](https://img.shields.io/badge/tests-183%20passed-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
 [![Security](https://img.shields.io/badge/security-trivy%20scanned-blue)](https://github.com/nadimtuhin/express-simple-proxy/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
@@ -526,15 +526,21 @@ import {
   buildQueryString,
   createFormDataPayload,
   generateCurlCommand,
-  asyncWrapper
+  asyncWrapper,
+  parseSize,
+  resolveProxyPath,
 } from 'express-simple-proxy';
 
 // URL manipulation
 const url = urlJoin('https://api.example.com', 'users', '?page=1');
 const templated = replaceUrlTemplate('/users/:id', { id: 123 });
+const path = resolveProxyPath('/users/:id', req.path, req.params); // → '/users/42'
 
 // Query string building
 const qs = buildQueryString({ page: 1, tags: ['red', 'blue'] });
+
+// Parse content-length header → number | undefined
+const bytes = parseSize(response.headers['content-length']);
 
 // Form data creation
 const formData = createFormDataPayload(req);
@@ -548,12 +554,43 @@ const wrappedMiddleware = asyncWrapper(async (req, res, next) => {
 });
 ```
 
+### Error Classification Helpers
+```typescript
+import {
+  classifyResponseError,
+  classifyNetworkError,
+  isShortCircuitResponse,
+  buildErrorResponseBody,
+  filterProxyResponseHeaders,
+} from 'express-simple-proxy';
+
+// Classify an AxiosError that has a response (4xx/5xx)
+// Sets error.code = 'UPSTREAM_AUTH' for 401/403
+const proxyErr = classifyResponseError(axiosError);
+
+// Classify a network-level AxiosError (no response received)
+// Sets error.code = UPSTREAM_TIMEOUT | UPSTREAM_UNREACHABLE | NETWORK_ERROR
+const netErr = classifyNetworkError(axiosError);
+
+// Type guard — true if value is a ShortCircuitResponse
+if (isShortCircuitResponse(hookResult)) {
+  res.status(hookResult.status).json(hookResult.data);
+}
+
+// Build the standard error response JSON body
+const body = buildErrorResponseBody(error);
+// → { error: { message, code, details? } }
+
+// Drop content-length from a headers map (safe to forward)
+const safe = filterProxyResponseHeaders(response.headers);
+```
+
 ## Development & Testing
 
 ### Test Coverage
 - **Total Coverage**: ~93%
-- **Tests Passed**: 137/137 ✅
-- **Test Suites**: Unit, Integration, Utils, Omitted Path
+- **Tests Passed**: 183/183 ✅
+- **Test Suites**: Unit, Integration, Utils, Errors, Omitted Path
 
 ### Running Tests
 ```bash

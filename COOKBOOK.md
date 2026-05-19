@@ -7,6 +7,7 @@ A collection of practical examples and recipes for common use cases with Express
 - [beforeRequest Hook](#beforerequest-hook)
 - [onResponse Stats Callback](#onresponse-stats-callback)
 - [Granular Error Codes](#granular-error-codes)
+- [Error Classification Helpers](#error-classification-helpers)
 - [Authentication & Security](#authentication--security)
 - [File Handling](#file-handling)
 - [Database & Caching](#database--caching)
@@ -262,6 +263,80 @@ const proxy = createProxyController({
     });
   },
 });
+```
+
+---
+
+## Error Classification Helpers
+
+The pure functions used internally to classify errors are exported for use in custom error handlers, middleware, or testing.
+
+### Re-classify an AxiosError in a Custom Axios Instance
+```typescript
+import axios from 'axios';
+import { classifyResponseError, classifyNetworkError } from 'express-simple-proxy';
+import type { AxiosError } from 'axios';
+
+const client = axios.create({ baseURL: 'https://api.example.com' });
+
+client.interceptors.response.use(undefined, (err: AxiosError) => {
+  if (err.response) throw classifyResponseError(err);
+  if (err.request) throw classifyNetworkError(err);
+  throw err;
+});
+```
+
+### Gate Middleware with `isShortCircuitResponse`
+```typescript
+import { isShortCircuitResponse } from 'express-simple-proxy';
+
+async function runBeforeRequestHooks(payload, req) {
+  for (const hook of hooks) {
+    const result = await hook(payload, req);
+    if (isShortCircuitResponse(result)) return result; // first hook that short-circuits wins
+  }
+}
+```
+
+### Build Consistent Error Bodies Outside the Proxy
+```typescript
+import { buildErrorResponseBody } from 'express-simple-proxy';
+
+// Reuse the same error shape in non-proxy routes
+app.use((err, req, res, next) => {
+  const body = buildErrorResponseBody(err);
+  res.status(err.status || 500).json(body);
+});
+```
+
+### Forward Upstream Headers Safely
+```typescript
+import { filterProxyResponseHeaders } from 'express-simple-proxy';
+
+// Strip content-length before setting headers on a custom response
+const safe = filterProxyResponseHeaders(upstreamResponse.headers);
+res.set(safe);
+res.json(transformedData); // content-length will be recalculated
+```
+
+### Parse `content-length` Without NaN Surprises
+```typescript
+import { parseSize } from 'express-simple-proxy';
+
+const bytes = parseSize(response.headers['content-length']);
+if (bytes !== undefined) {
+  metrics.recordResponseSize(bytes);
+}
+```
+
+### Resolve a Proxy Path Template
+```typescript
+import { resolveProxyPath } from 'express-simple-proxy';
+
+// Same logic the proxy uses internally — handy for logging or testing
+const upstream = resolveProxyPath('/api/users/:id', req.path, req.params);
+// e.g. req.params = { id: '42' } → '/api/users/42'
+// e.g. no proxyPath → returns req.path as-is
 ```
 
 ---
