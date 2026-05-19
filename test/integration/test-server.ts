@@ -24,8 +24,12 @@ const posts = [
   { id: 2, title: 'Post 2', content: 'Content 2', userId: 2 },
 ];
 
-// Utility function to simulate delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+// Utility function to simulate delay, cancellable via AbortSignal
+const delay = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>(resolve => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => clearTimeout(timer), { once: true });
+  });
 
 // Routes
 app.get('/health', (_req, res) => {
@@ -37,20 +41,21 @@ app.get('/users', (req, res) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
   const search = req.query.search as string;
-  
+
   let filteredUsers = users;
-  
+
   if (search) {
-    filteredUsers = users.filter(user => 
-      user.name.toLowerCase().includes(search.toLowerCase()) ||
-      user.email.toLowerCase().includes(search.toLowerCase())
+    filteredUsers = users.filter(
+      user =>
+        user.name.toLowerCase().includes(search.toLowerCase()) ||
+        user.email.toLowerCase().includes(search.toLowerCase())
     );
   }
-  
+
   const start = (page - 1) * limit;
   const end = start + limit;
   const paginatedUsers = filteredUsers.slice(start, end);
-  
+
   res.json({
     data: paginatedUsers,
     pagination: {
@@ -65,17 +70,17 @@ app.get('/users', (req, res) => {
 app.get('/users/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const user = users.find(u => u.id === id);
-  
+
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
-  
+
   return res.json({ data: user });
 });
 
 app.post('/users', (req, res) => {
   const { name, email } = req.body;
-  
+
   if (!name || !email) {
     return res.status(400).json({
       error: 'Validation failed',
@@ -85,15 +90,15 @@ app.post('/users', (req, res) => {
       },
     });
   }
-  
+
   const newUser = {
     id: Math.max(...users.map(u => u.id)) + 1,
     name,
     email,
   };
-  
+
   users.push(newUser);
-  
+
   return res.status(201).json({
     data: newUser,
     message: 'User created successfully',
@@ -104,11 +109,11 @@ app.put('/users/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const { name, email } = req.body;
   const userIndex = users.findIndex(u => u.id === id);
-  
+
   if (userIndex === -1) {
     return res.status(404).json({ error: 'User not found' });
   }
-  
+
   if (!name || !email) {
     return res.status(400).json({
       error: 'Validation failed',
@@ -118,9 +123,9 @@ app.put('/users/:id', (req, res) => {
       },
     });
   }
-  
+
   users[userIndex] = { ...users[userIndex], name, email };
-  
+
   return res.json({
     data: users[userIndex],
     message: 'User updated successfully',
@@ -130,37 +135,37 @@ app.put('/users/:id', (req, res) => {
 app.delete('/users/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const userIndex = users.findIndex(u => u.id === id);
-  
+
   if (userIndex === -1) {
     return res.status(404).json({ error: 'User not found' });
   }
-  
+
   users.splice(userIndex, 1);
-  
+
   res.status(204).send();
 });
 
 // Posts endpoints
 app.get('/posts', (req, res) => {
   const userId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
-  
+
   let filteredPosts = posts;
-  
+
   if (userId) {
     filteredPosts = posts.filter(post => post.userId === userId);
   }
-  
+
   res.json({ data: filteredPosts });
 });
 
 app.get('/posts/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const post = posts.find(p => p.id === id);
-  
+
   if (!post) {
     return res.status(404).json({ error: 'Post not found' });
   }
-  
+
   res.json({ data: post });
 });
 
@@ -169,7 +174,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  
+
   res.json({
     data: {
       filename: req.file.originalname,
@@ -186,9 +191,9 @@ app.post('/upload-multiple', upload.array('files'), (req, res) => {
   if (!req.files || (req.files as Express.Multer.File[]).length === 0) {
     return res.status(400).json({ error: 'No files uploaded' });
   }
-  
+
   const files = req.files as Express.Multer.File[];
-  
+
   res.json({
     data: files.map(file => ({
       filename: file.originalname,
@@ -203,7 +208,7 @@ app.post('/upload-multiple', upload.array('files'), (req, res) => {
 // Form data endpoint
 app.post('/form-data', upload.single('avatar'), (req, res) => {
   const { name, email, description } = req.body;
-  
+
   const response: any = {
     data: {
       name,
@@ -211,7 +216,7 @@ app.post('/form-data', upload.single('avatar'), (req, res) => {
       description,
     },
   };
-  
+
   if (req.file) {
     response.data.avatar = {
       filename: req.file.originalname,
@@ -219,7 +224,7 @@ app.post('/form-data', upload.single('avatar'), (req, res) => {
       size: req.file.size,
     };
   }
-  
+
   res.json(response);
 });
 
@@ -263,9 +268,10 @@ app.get('/error/500', (_req, res) => {
 let rateLimitCount = 0;
 app.get('/rate-limit', (req, res) => {
   rateLimitCount++;
-  
+
   if (rateLimitCount > 3) {
-    return res.status(429)
+    return res
+      .status(429)
       .set({
         'retry-after': '60',
         'x-ratelimit-remaining': '0',
@@ -276,12 +282,12 @@ app.get('/rate-limit', (req, res) => {
         message: 'Rate limit exceeded',
       });
   }
-  
+
   res.set({
     'x-ratelimit-remaining': String(3 - rateLimitCount),
     'x-ratelimit-reset': '1234567890',
   });
-  
+
   res.json({
     data: { message: 'Success', count: rateLimitCount },
   });
@@ -290,8 +296,10 @@ app.get('/rate-limit', (req, res) => {
 // Timeout simulation
 app.get('/timeout', async (req, res) => {
   const delayMs = parseInt(req.query.delay as string) || 5000;
-  await delay(delayMs);
-  
+  const ac = new AbortController();
+  req.on('close', () => ac.abort());
+  await delay(delayMs, ac.signal);
+  if (res.writableEnded) return;
   res.json({
     data: { message: 'Response after delay', delay: delayMs },
   });
@@ -317,9 +325,9 @@ app.get('/redirect', (_req, res) => {
 // Activity log simulation
 app.post('/activity', (req, res) => {
   const { action, entity_type } = req.body;
-  
+
   const activityId = Date.now();
-  
+
   res.status(201).json({
     data: {
       id: activityId,
@@ -333,9 +341,9 @@ app.post('/activity', (req, res) => {
 // Job simulation
 app.post('/jobs', (req, res) => {
   const { type, data } = req.body;
-  
+
   const jobId = `job_${Date.now()}`;
-  
+
   res.status(201).json({
     data: {
       job_id: jobId,
@@ -358,7 +366,7 @@ app.use('*', (req, res) => {
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Test server error:', err);
-  
+
   res.status(500).json({
     error: 'Internal Server Error',
     message: err.message || 'Something went wrong',

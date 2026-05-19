@@ -537,6 +537,43 @@ import {
 } from 'express-simple-proxy';
 ```
 
+#### `ProxyStats`
+
+Passed to the `onResponse` callback on every terminal path.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | `string` | ✅ | Full URL of the upstream request |
+| `method` | `string` | ✅ | HTTP method (`GET`, `POST`, …) |
+| `status` | `number` | ✅ | HTTP status code that was sent to the client |
+| `durationMs` | `number` | ✅ | Wall-clock time from request start to terminal path (ms) |
+| `responseSizeBytes` | `number` | ❌ | Parsed `content-length` from upstream response; omitted when header absent |
+| `source` | `'upstream' \| 'short-circuit'` | ✅ | `'upstream'` for real HTTP calls; `'short-circuit'` when `beforeRequest` short-circuited |
+
+#### `ShortCircuitResponse`
+
+Return value from a `beforeRequest` hook to skip the upstream call.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `status` | `number` | ✅ | HTTP status sent to the client |
+| `data` | `unknown` | ✅ | Response body sent as JSON |
+| `headers` | `Record<string, string>` | ❌ | Optional response headers |
+| `statusText` | `string` | ❌ | Optional status text |
+
+#### `ProxyErrorCode`
+
+Granular error codes set on `error.code`:
+
+| Code | When set |
+|------|----------|
+| `UPSTREAM_TIMEOUT` | Upstream did not respond within `timeout` ms |
+| `UPSTREAM_UNREACHABLE` | Connection refused or DNS failure |
+| `UPSTREAM_AUTH` | Upstream returned 401 or 403 |
+| `NETWORK_ERROR` | Other network-level failure (no response received) |
+| `REQUEST_ERROR` | Axios request setup failed |
+| `UNKNOWN_ERROR` | Unclassified error |
+
 ### Utility Functions
 ```typescript
 import {

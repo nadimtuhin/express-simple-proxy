@@ -8,6 +8,10 @@ describe('Proxy', () => {
     nock.cleanAll();
   });
 
+  afterEach(() => {
+    nock.cleanAll();
+  });
+
   describe('axiosProxyRequest', () => {
     it('should make successful GET request', async () => {
       const mockData = { id: 1, name: 'John Doe' };
@@ -94,7 +98,9 @@ describe('Proxy', () => {
     });
 
     it('should handle timeout', async () => {
-      nock('http://example.com').get('/api/users').delay(6000).reply(200, {});
+      nock('http://example.com')
+        .get('/api/users')
+        .replyWithError({ message: 'timeout of 1000ms exceeded', code: 'ECONNABORTED' });
 
       const payload = {
         url: 'http://example.com/api/users',

@@ -1,3 +1,6 @@
+# Tool state
+.omc/
+
 # Dependencies
 node_modules/
 npm-debug.log*
