@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-05-20
+
+### Fixed
+- Eliminated test suite open handle: replaced nock `delay()` with `replyWithError({code: ECONNABORTED})` for timeout unit test
+- Integration test server now cancels its delay timer on client disconnect (via AbortController), preventing worker exit warnings
+
+### Added
+- `ProxyStats`, `ShortCircuitResponse`, and `ProxyErrorCode` field tables in README API Reference
+- `.omc/` added to `.gitignore`
+
 ## [1.1.2] - 2026-05-20
 
 ### Changed
