@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-20
+
+### Changed
+- Refactored `createProxyController` internals: extracted `buildRequestPayload`, `dispatchUpstreamResponse`, and `applyErrorHook` as named module-level helpers
+- Replaced conditional spread with explicit object assignment for `ProxyStats`
+- No API changes
+
 ## [1.1.0] - 2026-05-20
 
 ### Added

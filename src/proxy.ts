@@ -78,7 +78,6 @@ export function defaultErrorHandler(
   const status = error.status || 500;
   const errorResponse = buildErrorResponseBody(error);
 
-  // Forward original headers if available
   if (error.headers) {
     const filtered = filterProxyResponseHeaders(error.headers);
     Object.entries(filtered).forEach(([name, value]) => {
@@ -114,6 +113,83 @@ function validateConfig(config: ProxyConfig): void {
   }
 }
 
+function buildRequestPayload(
+  config: ProxyConfig,
+  req: RequestWithLocals,
+  reqWithFiles: RequestWithFiles,
+  proxyPath: string | undefined
+): ProxyRequestPayload {
+  const qs = buildQueryString(req.query);
+  const modifiedProxyPath = resolveProxyPath(proxyPath, req.path, req.params);
+  const payload: ProxyRequestPayload = {
+    url: urlJoin(config.baseURL, modifiedProxyPath, qs),
+    headers: { ...config.headers(req) },
+    method: req.method,
+    timeout: config.timeout || DEFAULT_TIMEOUT,
+  };
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    const useFormData = req.is('multipart/form-data');
+    if (useFormData) {
+      const bodyFormData = createFormDataPayload(reqWithFiles);
+      payload.data = bodyFormData;
+      Object.assign(payload.headers, bodyFormData.getHeaders());
+    } else {
+      payload.data = JSON.stringify(req.body);
+      if (!payload.headers['Content-Type']) {
+        payload.headers['Content-Type'] = 'application/json';
+      }
+    }
+  }
+  return payload;
+}
+
+async function dispatchUpstreamResponse(
+  handler: ResponseHandler | boolean | undefined,
+  req: RequestWithLocals,
+  res: Response,
+  remoteResponse: ProxyResponse,
+  config: ProxyConfig
+): Promise<void> {
+  if (!handler) {
+    res.status(remoteResponse.status);
+    if (config.responseHeaders) {
+      res.set(config.responseHeaders(remoteResponse));
+    }
+    res.json(remoteResponse.data);
+  } else if (typeof handler === 'function') {
+    await handler(req, res, remoteResponse);
+  } else {
+    res.json(remoteResponse.data);
+  }
+}
+
+async function applyErrorHook(
+  error: ProxyError,
+  req: RequestWithLocals,
+  res: Response,
+  errorHandlerHook: ProxyConfig['errorHandlerHook'],
+  errorHandler: NonNullable<ProxyConfig['errorHandler']>
+): Promise<ProxyError> {
+  let processedError = error;
+  if (errorHandlerHook) {
+    try {
+      const hookResult = await errorHandlerHook(processedError, req, res);
+      if (hookResult && (hookResult instanceof Error || 'message' in hookResult)) {
+        processedError = hookResult;
+      }
+    } catch (hookError) {
+      console.error('Error handler hook failed:', hookError);
+    }
+  }
+  try {
+    await errorHandler(processedError, req, res);
+  } catch (handlerError) {
+    console.error('Custom error handler failed:', handlerError);
+    defaultErrorHandler(processedError, req, res);
+  }
+  return processedError;
+}
+
 export function createProxyController(config: ProxyConfig): ProxyController {
   validateConfig(config);
 
@@ -142,30 +218,7 @@ export function createProxyController(config: ProxyConfig): ProxyController {
         }
       };
 
-      const qs = buildQueryString(req.query);
-      const modifiedProxyPath = resolveProxyPath(proxyPath, req.path, req.params);
-
-      const payload: ProxyRequestPayload = {
-        url: urlJoin(config.baseURL, modifiedProxyPath, qs),
-        headers: { ...config.headers(req) },
-        method: req.method,
-        timeout: config.timeout || DEFAULT_TIMEOUT,
-      };
-
-      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-        const useFormData = req.is('multipart/form-data');
-
-        if (useFormData) {
-          const bodyFormData = createFormDataPayload(reqWithFiles);
-          payload.data = bodyFormData;
-          Object.assign(payload.headers, bodyFormData.getHeaders());
-        } else {
-          payload.data = JSON.stringify(req.body);
-          if (!payload.headers['Content-Type']) {
-            payload.headers['Content-Type'] = 'application/json';
-          }
-        }
-      }
+      const payload = buildRequestPayload(config, req, reqWithFiles, proxyPath);
 
       try {
         if (process.env.NODE_ENV === 'development') {
@@ -193,49 +246,28 @@ export function createProxyController(config: ProxyConfig): ProxyController {
         }
 
         const remoteResponse = await axiosProxyRequest(payload);
-
-        if (!handler) {
-          res.status(remoteResponse.status);
-          if (config.responseHeaders) {
-            res.set(config.responseHeaders(remoteResponse));
-          }
-          res.json(remoteResponse.data);
-        } else if (typeof handler === 'function') {
-          await handler(req, res, remoteResponse);
-        } else {
-          res.json(remoteResponse.data);
-        }
+        await dispatchUpstreamResponse(handler, req, res, remoteResponse, config);
 
         const size = parseSize(remoteResponse.headers['content-length']);
-        await fireStats({
+        const upstreamStats: ProxyStats = {
           url: payload.url,
           method: payload.method,
           status: remoteResponse.status,
           durationMs: Date.now() - startedAt,
-          ...(size !== undefined ? { responseSizeBytes: size } : {}),
           source: 'upstream',
-        });
+        };
+        if (size !== undefined) {
+          upstreamStats.responseSizeBytes = size;
+        }
+        await fireStats(upstreamStats);
       } catch (error) {
-        let processedError = error as ProxyError;
-
-        if (errorHandlerHook) {
-          try {
-            const hookResult = await errorHandlerHook(processedError, req, res);
-            if (hookResult && (hookResult instanceof Error || 'message' in hookResult)) {
-              processedError = hookResult;
-            }
-          } catch (hookError) {
-            console.error('Error handler hook failed:', hookError);
-          }
-        }
-
-        try {
-          await errorHandler(processedError, req, res);
-        } catch (handlerError) {
-          console.error('Custom error handler failed:', handlerError);
-          defaultErrorHandler(processedError, req, res);
-        }
-
+        const processedError = await applyErrorHook(
+          error as ProxyError,
+          req,
+          res,
+          errorHandlerHook,
+          errorHandler
+        );
         await fireStats({
           url: payload.url,
           method: payload.method,
