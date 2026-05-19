@@ -4,6 +4,9 @@ A collection of practical examples and recipes for common use cases with Express
 
 ## Table of Contents
 
+- [beforeRequest Hook](#beforerequest-hook)
+- [onResponse Stats Callback](#onresponse-stats-callback)
+- [Granular Error Codes](#granular-error-codes)
 - [Authentication & Security](#authentication--security)
 - [File Handling](#file-handling)
 - [Database & Caching](#database--caching)
@@ -13,6 +16,255 @@ A collection of practical examples and recipes for common use cases with Express
 - [Rate Limiting & Throttling](#rate-limiting--throttling)
 - [Data Transformation](#data-transformation)
 - [Content Negotiation](#content-negotiation)
+
+## beforeRequest Hook
+
+### Inject Headers Before Every Request
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  beforeRequest: (payload, req) => {
+    payload.headers['X-Request-ID'] = crypto.randomUUID();
+    payload.headers['X-User-ID'] = req.locals?.userId;
+    payload.headers['X-Timestamp'] = Date.now().toString();
+  },
+});
+```
+
+### Serve from Cache (Short-Circuit)
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  beforeRequest: async (payload) => {
+    const cached = await redis.get(payload.url);
+    if (cached) {
+      return {
+        status: 200,
+        data: JSON.parse(cached),
+        headers: { 'X-Cache': 'HIT' },
+      };
+    }
+    // undefined → proceed to upstream
+  },
+});
+```
+
+### Block Requests Based on Conditions
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  beforeRequest: (payload, req) => {
+    if (!req.locals?.userId) {
+      return { status: 401, data: { error: 'Authentication required' } };
+    }
+    if (req.locals.plan === 'free' && payload.url.includes('/premium')) {
+      return { status: 403, data: { error: 'Upgrade required', upgradeUrl: '/billing' } };
+    }
+  },
+});
+```
+
+### Rewrite the Upstream URL
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  beforeRequest: (payload, req) => {
+    // Route beta users to a staging cluster
+    if (req.locals?.isBeta) {
+      payload.url = payload.url.replace('api.example.com', 'staging.example.com');
+    }
+  },
+});
+```
+
+### Async Token Refresh
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  beforeRequest: async (payload, req) => {
+    const token = req.locals?.token;
+    if (isExpired(token)) {
+      const fresh = await refreshToken(req.locals.refreshToken);
+      payload.headers['Authorization'] = `Bearer ${fresh}`;
+    } else {
+      payload.headers['Authorization'] = `Bearer ${token}`;
+    }
+  },
+});
+```
+
+---
+
+## onResponse Stats Callback
+
+### Structured Request Logging
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  onResponse: (stats, req) => {
+    logger.info({
+      url: stats.url,
+      method: stats.method,
+      status: stats.status,
+      durationMs: stats.durationMs,
+      source: stats.source,
+      userId: req.locals?.userId,
+    });
+  },
+});
+```
+
+### Prometheus Metrics
+```typescript
+import { Counter, Histogram } from 'prom-client';
+
+const httpRequests = new Counter({
+  name: 'proxy_requests_total',
+  labelNames: ['method', 'status', 'source'],
+});
+const httpDuration = new Histogram({
+  name: 'proxy_request_duration_ms',
+  labelNames: ['method', 'status'],
+  buckets: [50, 100, 200, 500, 1000, 2000],
+});
+
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  onResponse: (stats) => {
+    httpRequests.inc({ method: stats.method, status: String(stats.status), source: stats.source });
+    httpDuration.observe({ method: stats.method, status: String(stats.status) }, stats.durationMs);
+  },
+});
+```
+
+### Latency SLO Alerting
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  onResponse: (stats) => {
+    if (stats.durationMs > 2000) {
+      alerting.warn(`Slow upstream: ${stats.method} ${stats.url} took ${stats.durationMs}ms`);
+    }
+    if (stats.status >= 500) {
+      alerting.error(`Upstream error ${stats.status}: ${stats.url}`);
+    }
+  },
+});
+```
+
+### Cache Population After Upstream
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  onResponse: async (stats, req, res) => {
+    // Only cache successful upstream GET responses
+    if (stats.source === 'upstream' && stats.status === 200 && req.method === 'GET') {
+      // Response body is already sent; cache the URL mapping for next time
+      await redis.setex(`cache:${stats.url}`, 60, 'cached');
+    }
+  },
+});
+```
+
+### Audit Trail
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  onResponse: async (stats, req) => {
+    await auditLog.write({
+      actor: req.locals?.userId,
+      action: `${stats.method} ${stats.url}`,
+      outcome: stats.status < 400 ? 'success' : 'failure',
+      durationMs: stats.durationMs,
+      timestamp: new Date().toISOString(),
+    });
+  },
+});
+```
+
+---
+
+## Granular Error Codes
+
+### Handle Specific Error Conditions
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  errorHandler: (error, req, res) => {
+    switch (error.code) {
+      case 'UPSTREAM_TIMEOUT':
+        return res.status(504).json({ error: 'Gateway timeout — try again shortly' });
+      case 'UPSTREAM_UNREACHABLE':
+        return res.status(503).json({ error: 'Service unavailable' });
+      case 'UPSTREAM_AUTH':
+        return res.status(401).json({ error: 'Authentication failed' });
+      default:
+        return res.status(error.status || 500).json({ error: error.message });
+    }
+  },
+});
+```
+
+### Circuit Breaker Pattern
+```typescript
+const failures = new Map<string, number>();
+
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  beforeRequest: (payload) => {
+    const key = new URL(payload.url).hostname;
+    if ((failures.get(key) ?? 0) >= 5) {
+      return { status: 503, data: { error: 'Circuit open — upstream unhealthy' } };
+    }
+  },
+  errorHandler: (error, req, res) => {
+    if (error.code === 'UPSTREAM_UNREACHABLE' || error.code === 'UPSTREAM_TIMEOUT') {
+      const key = new URL(error.message).hostname ?? 'unknown';
+      failures.set(key, (failures.get(key) ?? 0) + 1);
+      // Reset after 30s
+      setTimeout(() => failures.delete(key), 30_000);
+    }
+    res.status(error.status || 500).json({ error: error.message, code: error.code });
+  },
+});
+```
+
+### Differentiated Retry Logic
+```typescript
+const RETRYABLE_CODES = new Set(['UPSTREAM_TIMEOUT', 'UPSTREAM_UNREACHABLE', 'NETWORK_ERROR']);
+
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+  onResponse: (stats, req) => {
+    // Log retry eligibility for observability
+    if (stats.status >= 500) {
+      logger.warn({ url: stats.url, retryable: RETRYABLE_CODES.has('UPSTREAM_TIMEOUT') });
+    }
+  },
+  errorHandler: (error, req, res) => {
+    res.status(error.status || 500).json({
+      error: error.message,
+      code: error.code,
+      retryable: RETRYABLE_CODES.has(error.code ?? ''),
+    });
+  },
+});
+```
+
+---
 
 ## Authentication & Security
 

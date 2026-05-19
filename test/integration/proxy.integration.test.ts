@@ -637,7 +637,7 @@ describe('Proxy Integration Tests', () => {
         .get('/timeout?delay=2000') // 2 second delay
         .expect(503);
 
-      expect(response.body.error.code).toBe('NETWORK_ERROR');
+      expect(response.body.error.code).toBe('UPSTREAM_TIMEOUT');
     });
   });
 
@@ -687,6 +687,93 @@ describe('Proxy Integration Tests', () => {
 
       expect(response.body.data.name).toBe('Test User');
       expect(response.body.data.email).toBe('test@example.com');
+    });
+  });
+
+  describe('Lifecycle Hooks', () => {
+    it('beforeRequest can short-circuit without hitting upstream', async () => {
+      const beforeRequest = jest.fn().mockReturnValue({
+        status: 202,
+        data: { cached: true },
+        headers: { 'x-source': 'cache' },
+      });
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({}),
+        beforeRequest,
+      };
+      const proxy = createProxyController(config);
+      app.get('/cached', proxy() as any);
+
+      const response = await request(app).get('/cached').expect(202);
+      expect(response.body).toEqual({ cached: true });
+      expect(response.headers['x-source']).toBe('cache');
+      expect(beforeRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('beforeRequest can mutate headers before upstream', async () => {
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({}),
+        beforeRequest: payload => {
+          payload.headers['x-injected'] = 'integration';
+        },
+      };
+      const proxy = createProxyController(config);
+      app.get('/headers', proxy() as any);
+
+      const response = await request(app).get('/headers').expect(200);
+      expect(response.body.data.receivedHeaders['x-injected']).toBe('integration');
+    });
+
+    it('onResponse fires for upstream success', async () => {
+      const onResponse = jest.fn();
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({}),
+        onResponse,
+      };
+      const proxy = createProxyController(config);
+      app.get('/health', proxy() as any);
+
+      await request(app).get('/health').expect(200);
+      expect(onResponse).toHaveBeenCalledTimes(1);
+      expect(onResponse.mock.calls[0][0]).toMatchObject({
+        method: 'GET',
+        status: 200,
+        source: 'upstream',
+      });
+    });
+
+    it('onResponse fires for short-circuit', async () => {
+      const onResponse = jest.fn();
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({}),
+        beforeRequest: () => ({ status: 200, data: { sc: true } }),
+        onResponse,
+      };
+      const proxy = createProxyController(config);
+      app.get('/maybe-cached', proxy() as any);
+
+      await request(app).get('/maybe-cached').expect(200);
+      expect(onResponse).toHaveBeenCalledTimes(1);
+      expect(onResponse.mock.calls[0][0].source).toBe('short-circuit');
+    });
+
+    it('onResponse fires for error path (upstream 404)', async () => {
+      const onResponse = jest.fn();
+      const config: ProxyConfig = {
+        baseURL: testServerUrl,
+        headers: () => ({}),
+        onResponse,
+      };
+      const proxy = createProxyController(config);
+      app.get('/error-trigger', proxy('/nonexistent-upstream-route') as any);
+
+      await request(app).get('/error-trigger').expect(404);
+      expect(onResponse).toHaveBeenCalledTimes(1);
+      expect(onResponse.mock.calls[0][0]).toMatchObject({ status: 404, source: 'upstream' });
     });
   });
 });

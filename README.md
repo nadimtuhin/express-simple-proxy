@@ -2,8 +2,9 @@
 
 [![npm version](https://badge.fury.io/js/express-simple-proxy.svg)](https://badge.fury.io/js/express-simple-proxy)
 [![Build Status](https://github.com/nadimtuhin/express-simple-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/nadimtuhin/express-simple-proxy/actions)
-[![Coverage](https://img.shields.io/badge/coverage-93.18%25-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
-[![Tests](https://img.shields.io/badge/tests-109%20passed-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
+[![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
+[![Tests](https://img.shields.io/badge/tests-137%20passed-brightgreen)](https://github.com/nadimtuhin/express-simple-proxy/actions)
+[![Security](https://img.shields.io/badge/security-trivy%20scanned-blue)](https://github.com/nadimtuhin/express-simple-proxy/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue)](https://www.typescriptlang.org/)
 [![Known Vulnerabilities](https://snyk.io/test/github/nadimtuhin/express-simple-proxy/badge.svg)](https://snyk.io/test/github/nadimtuhin/express-simple-proxy)
@@ -124,6 +125,8 @@ Optimized specifically for REST API communication:
 | `responseHeaders` | `function` | ❌ | Function to transform response headers |
 | `errorHandler` | `function` | ❌ | Custom error handling function |
 | `errorHandlerHook` | `function` | ❌ | Error processing hook function |
+| `beforeRequest` | `function` | ❌ | Hook to mutate the payload or short-circuit with a custom response before the upstream call |
+| `onResponse` | `function` | ❌ | Callback fired once per request on every terminal path (upstream, short-circuit, error) with traffic stats |
 
 ### Advanced Configuration
 
@@ -365,11 +368,93 @@ const proxy = createProxyController({
 - Data Transformation (Schema Validation, GraphQL)
 - Content Negotiation (Accept Headers, Compression)
 
+## Lifecycle Hooks
+
+### `beforeRequest` — Mutate or Short-Circuit
+
+Runs after the payload is assembled but before the upstream call. Return a `ShortCircuitResponse` to skip the upstream entirely.
+
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+
+  // Inject headers before forwarding
+  beforeRequest: (payload, req) => {
+    payload.headers['X-Request-ID'] = crypto.randomUUID();
+    payload.headers['X-User-ID'] = req.locals?.userId;
+  },
+});
+
+// Or short-circuit (e.g. serve from cache)
+const cachingProxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+
+  beforeRequest: async (payload, req) => {
+    const cached = await cache.get(payload.url);
+    if (cached) {
+      return { status: 200, data: cached, headers: { 'X-Cache': 'HIT' } };
+    }
+    // returning undefined → proceeds to upstream
+  },
+});
+```
+
+### `onResponse` — Traffic Stats Callback
+
+Fires exactly once per request on all three terminal paths: upstream success, short-circuit, and error. Never throws to the caller — exceptions are swallowed and logged.
+
+```typescript
+const proxy = createProxyController({
+  baseURL: 'https://api.example.com',
+  headers: () => ({}),
+
+  onResponse: (stats, req, res) => {
+    console.log({
+      url: stats.url,
+      method: stats.method,
+      status: stats.status,
+      durationMs: stats.durationMs,
+      responseSizeBytes: stats.responseSizeBytes, // from content-length header
+      source: stats.source, // 'upstream' | 'short-circuit'
+    });
+  },
+});
+```
+
+### Granular Error Codes
+
+`error.code` is now more specific, making it easier to take targeted action:
+
+| `error.code` | Meaning |
+|---|---|
+| `UPSTREAM_TIMEOUT` | Timeout waiting for upstream response |
+| `UPSTREAM_UNREACHABLE` | Connection refused / DNS failure / reset |
+| `UPSTREAM_AUTH` | Upstream returned 401 or 403 |
+| `NETWORK_ERROR` | Other network-level failure (fallback) |
+| `REQUEST_ERROR` | Axios request setup failure |
+| `UNKNOWN_ERROR` | Unclassified error |
+
+HTTP status codes are unchanged — network errors still return **503**.
+
+```typescript
+errorHandler: (error, req, res) => {
+  if (error.code === 'UPSTREAM_TIMEOUT') {
+    return res.status(504).json({ error: 'Gateway timeout' });
+  }
+  if (error.code === 'UPSTREAM_AUTH') {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  res.status(error.status || 500).json({ error: error.message });
+}
+```
+
 ## Error Handling
 
 ### Error Types
 1. **Response Errors (4xx/5xx)**: Server responded with error status
-2. **Network Errors (503)**: No response received (timeout, connection refused)  
+2. **Network Errors (503)**: No response received (timeout, connection refused)
 3. **Request Setup Errors (500)**: Invalid configuration or malformed data
 
 ### Error Handler Flow
@@ -420,7 +505,12 @@ const proxy = createProxyController({
 import {
   ProxyConfig,
   ProxyError,
+  ProxyErrorCode,
   ProxyResponse,
+  ProxyStats,
+  ShortCircuitResponse,
+  BeforeRequestHook,
+  OnResponseCallback,
   RequestWithLocals,
   ErrorHandler,
   ErrorHandlerHook,
@@ -461,8 +551,8 @@ const wrappedMiddleware = asyncWrapper(async (req, res, next) => {
 ## Development & Testing
 
 ### Test Coverage
-- **Total Coverage**: 93.18%
-- **Tests Passed**: 109/109 ✅
+- **Total Coverage**: ~93%
+- **Tests Passed**: 137/137 ✅
 - **Test Suites**: Unit, Integration, Utils, Omitted Path
 
 ### Running Tests

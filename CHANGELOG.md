@@ -8,7 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial release of express-simple-proxy
+- `beforeRequest` hook — mutate the proxy payload (URL, headers, data, timeout) or return a `ShortCircuitResponse` to skip the upstream call entirely
+- `onResponse` stats callback — fires exactly once per request on every terminal path (upstream success, short-circuit, error) with `ProxyStats` containing URL, method, status, duration, optional response size, and source
+- Granular `error.code` values: `UPSTREAM_TIMEOUT`, `UPSTREAM_UNREACHABLE`, `UPSTREAM_AUTH`, `NETWORK_ERROR`, `REQUEST_ERROR`, `UNKNOWN_ERROR`
+- New exported types: `ProxyErrorCode`, `ShortCircuitResponse`, `ProxyStats`, `BeforeRequestHook`, `OnResponseCallback`
+- Trivy vulnerability scanning in CI pipeline
+- Dependabot configuration for automated dependency updates
+- Cookbook recipes for `beforeRequest`, `onResponse`, and granular error codes
+
+### Changed
+- `error.code` on timeout errors is now `UPSTREAM_TIMEOUT` (previously `NETWORK_ERROR`)
+- `error.code` on connection-refused / DNS-failure errors is now `UPSTREAM_UNREACHABLE`
+- `error.code` on 401/403 upstream responses is now `UPSTREAM_AUTH`
+- HTTP status codes are unchanged — network errors still return **503**
+
+
 - TypeScript support with comprehensive type definitions
 - Advanced error handling with custom error handlers and hooks
 - File upload support for multipart/form-data
