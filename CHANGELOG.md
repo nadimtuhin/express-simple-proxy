@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-05-20
+
+### Changed
+- Updated GitHub Actions: `actions/checkout` v4→v6, `actions/setup-node` v4→v6, `pnpm/action-setup` v2→v6, `actions/upload-artifact` v4→v7, `codecov/codecov-action` v4→v6
+- Updated dev dependencies (7 packages)
+- Added Dependabot auto-merge workflow: PRs are approved and merged automatically when CI passes
+
 ## [1.1.1] - 2026-05-20
 
 ### Changed
