@@ -16,7 +16,9 @@ describe('Utils', () => {
     });
 
     it('should handle trailing slashes', () => {
-      expect(urlJoin('http://example.com/', '/api/', '/users/')).toBe('http://example.com/api/users');
+      expect(urlJoin('http://example.com/', '/api/', '/users/')).toBe(
+        'http://example.com/api/users'
+      );
     });
 
     it('should handle single part', () => {
@@ -24,7 +26,9 @@ describe('Utils', () => {
     });
 
     it('should handle empty parts', () => {
-      expect(urlJoin('http://example.com', '', 'api', '', 'users')).toBe('http://example.com/api/users');
+      expect(urlJoin('http://example.com', '', 'api', '', 'users')).toBe(
+        'http://example.com/api/users'
+      );
     });
 
     it('should handle query strings', () => {
@@ -177,9 +181,9 @@ describe('Utils', () => {
 
       const formData = createFormDataPayload(req);
       expect(formData).toBeInstanceOf(FormData);
-      
+
       // Verify that the form data was created successfully
-      // Note: FormData.toString() doesn't provide readable content, 
+      // Note: FormData.toString() doesn't provide readable content,
       // but we can verify the structure is correct by checking it's a FormData instance
       // The actual functionality is tested in integration tests and curl generation tests
     });
@@ -210,6 +214,46 @@ describe('Utils', () => {
       const formData = createFormDataPayload(req);
       expect(formData).toBeInstanceOf(FormData);
     });
+
+    it('should include files from multer.fields() object-form req.files', () => {
+      const req = {
+        body: { title: 'Upload' },
+        files: {
+          avatar: [
+            {
+              fieldname: 'avatar',
+              originalname: 'photo.jpg',
+              encoding: '7bit',
+              mimetype: 'image/jpeg',
+              buffer: Buffer.from('img-data'),
+              size: 8,
+            },
+          ],
+          doc: [
+            {
+              fieldname: 'doc',
+              originalname: 'file.pdf',
+              encoding: '7bit',
+              mimetype: 'application/pdf',
+              buffer: Buffer.from('pdf-data'),
+              size: 8,
+            },
+          ],
+        },
+      } as unknown as RequestWithFiles;
+
+      const formData = createFormDataPayload(req);
+      expect(formData).toBeInstanceOf(FormData);
+
+      // Boundary must exist — files were appended, not silently dropped
+      const boundary = formData.getBoundary();
+      expect(boundary).toBeTruthy();
+
+      // Serialised body must reference both original filenames
+      const serialised = formData.getBuffer().toString();
+      expect(serialised).toContain('photo.jpg');
+      expect(serialised).toContain('file.pdf');
+    });
   });
 
   describe('generateCurlCommand', () => {
@@ -218,12 +262,14 @@ describe('Utils', () => {
         url: 'http://example.com/api/users',
         method: 'GET',
         headers: {
-          'Authorization': 'Bearer token123',
+          Authorization: 'Bearer token123',
         },
       };
 
       const result = generateCurlCommand(payload);
-      expect(result).toBe("curl -X GET 'http://example.com/api/users' -H 'Authorization: Bearer token123'");
+      expect(result).toBe(
+        "curl -X GET 'http://example.com/api/users' -H 'Authorization: Bearer token123'"
+      );
     });
 
     it('should handle POST with JSON data', () => {
@@ -237,7 +283,9 @@ describe('Utils', () => {
       };
 
       const result = generateCurlCommand(payload);
-      expect(result).toBe("curl -X POST 'http://example.com/api/users' -H 'Content-Type: application/json' -d '{\"name\":\"John Doe\"}'");
+      expect(result).toBe(
+        "curl -X POST 'http://example.com/api/users' -H 'Content-Type: application/json' -d '{\"name\":\"John Doe\"}'"
+      );
     });
 
     it('should handle FormData', () => {
@@ -246,7 +294,7 @@ describe('Utils', () => {
         url: 'http://example.com/api/upload',
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer token123',
+          Authorization: 'Bearer token123',
         },
         data: formData,
       };
@@ -284,13 +332,13 @@ describe('Utils', () => {
         url: 'http://example.com/api/submit',
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer token123',
+          Authorization: 'Bearer token123',
         },
         data: formData,
       };
 
       const req = {
-        body: { 
+        body: {
           name: 'John Doe',
           tags: ['javascript', 'nodejs', 'express'],
           categories: ['tech', 'web'],
@@ -320,7 +368,7 @@ describe('Utils', () => {
       };
 
       const req = {
-        body: { 
+        body: {
           title: 'My Upload',
           tags: ['image', 'photo'],
         },
@@ -354,7 +402,7 @@ describe('Utils', () => {
       };
 
       const req = {
-        body: { 
+        body: {
           title: 'Test',
           tags: [],
           active: true,
@@ -367,7 +415,6 @@ describe('Utils', () => {
       expect(result).not.toContain("-F 'tags=");
     });
   });
-
 
   describe('asyncWrapper', () => {
     it('should wrap async function and handle success', async () => {

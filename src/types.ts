@@ -95,7 +95,7 @@ export interface FileUpload {
 }
 
 export interface RequestWithFiles extends Omit<RequestWithLocals, 'file' | 'files'> {
-  files?: FileUpload[];
+  files?: FileUpload[] | { [fieldname: string]: FileUpload[] };
   file?: FileUpload;
 }
 
