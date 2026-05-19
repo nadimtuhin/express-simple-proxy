@@ -15,12 +15,20 @@ import {
 } from './types';
 import {
   urlJoin,
-  replaceUrlTemplate,
   buildQueryString,
   createFormDataPayload,
   generateCurlCommand,
   asyncWrapper,
+  parseSize,
+  resolveProxyPath,
 } from './utils';
+import {
+  classifyResponseError,
+  classifyNetworkError,
+  isShortCircuitResponse,
+  buildErrorResponseBody,
+  filterProxyResponseHeaders,
+} from './errors';
 
 /**
  * Make HTTP request using axios with enhanced error handling
@@ -47,31 +55,9 @@ export async function axiosProxyRequest(payload: ProxyRequestPayload): Promise<P
     const axiosError = error as AxiosError;
 
     if (axiosError.response) {
-      const enhancedError: ProxyError = new Error(
-        ((axiosError.response.data as Record<string, unknown>)?.message as string) ||
-          axiosError.message
-      );
-      enhancedError.status = axiosError.response.status;
-      enhancedError.data = axiosError.response.data;
-      enhancedError.headers = axiosError.response.headers as Record<string, string>;
-      if (axiosError.response.status === 401 || axiosError.response.status === 403) {
-        enhancedError.code = 'UPSTREAM_AUTH';
-      }
-      throw enhancedError;
+      throw classifyResponseError(axiosError);
     } else if (axiosError.request) {
-      const timeoutCodes = ['ECONNABORTED', 'ETIMEDOUT', 'ERR_CANCELED'];
-      const unreachableCodes = ['ECONNREFUSED', 'ENOTFOUND', 'ECONNRESET'];
-      const axiosCode = axiosError.code ?? '';
-      const enhancedError: ProxyError = new Error('Network error: No response received');
-      enhancedError.status = 503;
-      if (timeoutCodes.includes(axiosCode)) {
-        enhancedError.code = 'UPSTREAM_TIMEOUT';
-      } else if (unreachableCodes.includes(axiosCode)) {
-        enhancedError.code = 'UPSTREAM_UNREACHABLE';
-      } else {
-        enhancedError.code = 'NETWORK_ERROR';
-      }
-      throw enhancedError;
+      throw classifyNetworkError(axiosError);
     } else {
       const enhancedError: ProxyError = new Error(`Request setup error: ${axiosError.message}`);
       enhancedError.status = 500;
@@ -90,20 +76,13 @@ export function defaultErrorHandler(
   res: Response
 ): void {
   const status = error.status || 500;
-  const errorResponse = {
-    error: {
-      message: error.message || 'Internal server error',
-      code: error.code || 'UNKNOWN_ERROR',
-      ...(error.data ? { details: error.data } : {}),
-    },
-  };
+  const errorResponse = buildErrorResponseBody(error);
 
   // Forward original headers if available
   if (error.headers) {
-    Object.keys(error.headers).forEach(header => {
-      if (header.toLowerCase() !== 'content-length' && error.headers) {
-        res.set(header, error.headers[header]);
-      }
+    const filtered = filterProxyResponseHeaders(error.headers);
+    Object.entries(filtered).forEach(([name, value]) => {
+      res.set(name, value);
     });
   }
 
@@ -135,14 +114,6 @@ function validateConfig(config: ProxyConfig): void {
   }
 }
 
-function parseSize(contentLength: string | undefined): number | undefined {
-  if (!contentLength) {
-    return undefined;
-  }
-  const n = parseInt(contentLength, 10);
-  return isNaN(n) ? undefined : n;
-}
-
 export function createProxyController(config: ProxyConfig): ProxyController {
   validateConfig(config);
 
@@ -172,13 +143,7 @@ export function createProxyController(config: ProxyConfig): ProxyController {
       };
 
       const qs = buildQueryString(req.query);
-      let modifiedProxyPath = '';
-
-      if (proxyPath) {
-        modifiedProxyPath = replaceUrlTemplate(proxyPath, req.params);
-      } else {
-        modifiedProxyPath = req.path;
-      }
+      const modifiedProxyPath = resolveProxyPath(proxyPath, req.path, req.params);
 
       const payload: ProxyRequestPayload = {
         url: urlJoin(config.baseURL, modifiedProxyPath, qs),
@@ -210,12 +175,8 @@ export function createProxyController(config: ProxyConfig): ProxyController {
 
         if (beforeRequest) {
           const hookResult = await beforeRequest(payload, reqWithFiles);
-          if (hookResult && typeof (hookResult as { status?: unknown }).status === 'number') {
-            const sc = hookResult as {
-              status: number;
-              data: unknown;
-              headers?: Record<string, string>;
-            };
+          if (isShortCircuitResponse(hookResult)) {
+            const sc = hookResult;
             if (sc.headers) {
               res.set(sc.headers);
             }

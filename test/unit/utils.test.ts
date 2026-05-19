@@ -5,9 +5,53 @@ import {
   createFormDataPayload,
   generateCurlCommand,
   asyncWrapper,
+  parseSize,
+  resolveProxyPath,
 } from '../../src/utils';
 import { RequestWithFiles } from '../../src/types';
 import FormData from 'form-data';
+
+describe('parseSize', () => {
+  it("parses '42' to 42", () => {
+    expect(parseSize('42')).toBe(42);
+  });
+
+  it("parses '0' to 0", () => {
+    expect(parseSize('0')).toBe(0);
+  });
+
+  it("returns undefined for 'abc'", () => {
+    expect(parseSize('abc')).toBeUndefined();
+  });
+
+  it('returns undefined for empty string', () => {
+    expect(parseSize('')).toBeUndefined();
+  });
+
+  it('returns undefined for undefined', () => {
+    expect(parseSize(undefined)).toBeUndefined();
+  });
+});
+
+describe('resolveProxyPath', () => {
+  it('substitutes params when proxyPath is provided', () => {
+    expect(resolveProxyPath('/users/:id', '/ignored', { id: '5' })).toBe('/users/5');
+  });
+
+  it('returns reqPath when proxyPath is undefined', () => {
+    expect(resolveProxyPath(undefined, '/current', {})).toBe('/current');
+  });
+
+  it('returns proxyPath unchanged when params is empty', () => {
+    expect(resolveProxyPath('/static/path', '/ignored', {})).toBe('/static/path');
+  });
+
+  it('substitutes multiple params', () => {
+    expect(
+      resolveProxyPath('/orgs/:org/repos/:repo', '/ignored', { org: 'acme', repo: 'widget' })
+    ).toBe('/orgs/acme/repos/widget');
+  });
+});
 
 describe('Utils', () => {
   describe('urlJoin', () => {

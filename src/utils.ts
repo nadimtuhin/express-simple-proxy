@@ -1,7 +1,39 @@
 import { URLSearchParams } from 'url';
 import FormData from 'form-data';
 import { Response, NextFunction } from 'express';
-import { UrlVariables, RequestWithFiles, RequestWithLocals, CurlCommandOptions } from './types';
+import {
+  UrlVariables,
+  RequestWithFiles,
+  RequestWithLocals,
+  CurlCommandOptions,
+  FileUpload,
+} from './types';
+
+/**
+ * Parse a content-length header string into a number, or undefined if invalid
+ */
+export function parseSize(contentLength: string | undefined): number | undefined {
+  if (!contentLength) {
+    return undefined;
+  }
+  const n = parseInt(contentLength, 10);
+  return isNaN(n) ? undefined : n;
+}
+
+/**
+ * Resolve the proxy path: apply URL template substitution if proxyPath is provided,
+ * otherwise use reqPath as-is.
+ */
+export function resolveProxyPath(
+  proxyPath: string | undefined,
+  reqPath: string,
+  params: Record<string, string>
+): string {
+  if (proxyPath) {
+    return replaceUrlTemplate(proxyPath, params);
+  }
+  return reqPath;
+}
 
 /**
  * Joins URL parts with proper handling of slashes and query strings
@@ -13,7 +45,15 @@ export function urlJoin(...parts: string[]): string {
     return '';
   }
 
-  const joined = filteredParts
+  const lastPart = filteredParts[filteredParts.length - 1] as string;
+  const hasQuerySuffix = lastPart.startsWith('?');
+  const pathParts = hasQuerySuffix ? filteredParts.slice(0, -1) : filteredParts;
+
+  if (pathParts.length === 0) {
+    return lastPart;
+  }
+
+  const pathJoined = pathParts
     .map((part, index) => {
       if (index === 0) {
         return part.replace(/\/+$/, '');
@@ -22,29 +62,7 @@ export function urlJoin(...parts: string[]): string {
     })
     .join('/');
 
-  // Handle query strings - if last part starts with ?, merge it with previous part
-  const lastPart = filteredParts[filteredParts.length - 1];
-  if (lastPart && lastPart.startsWith('?')) {
-    const pathParts = filteredParts.slice(0, -1);
-    const queryString = lastPart;
-
-    if (pathParts.length === 0) {
-      return queryString;
-    }
-
-    const pathJoined = pathParts
-      .map((part, index) => {
-        if (index === 0) {
-          return part.replace(/\/+$/, '');
-        }
-        return part.replace(/^\/+/, '').replace(/\/+$/, '');
-      })
-      .join('/');
-
-    return pathJoined + queryString;
-  }
-
-  return joined;
+  return hasQuerySuffix ? pathJoined + lastPart : pathJoined;
 }
 
 /**
@@ -87,18 +105,30 @@ export function buildQueryString(query: Record<string, string | string[] | undef
 }
 
 /**
+ * Collect all uploaded files from a request into a flat array.
+ * Handles all three multer upload shapes: single file, array, and fields object.
+ */
+function getRequestFiles(req: RequestWithFiles | undefined): FileUpload[] {
+  if (!req) {
+    return [];
+  }
+  if (req.files) {
+    return Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+  }
+  return req.file ? [req.file] : [];
+}
+
+/**
  * Create FormData payload from Express request
  */
 export function createFormDataPayload(req: RequestWithFiles): FormData {
   const bodyFormData = new FormData();
 
-  // Add body fields
   if (req.body) {
     Object.keys(req.body).forEach(key => {
       const value = req.body[key];
       if (value !== undefined && value !== null) {
         if (Array.isArray(value)) {
-          // Handle arrays by appending each value separately
           value.forEach(v => bodyFormData.append(key, String(v)));
         } else {
           bodyFormData.append(key, String(value));
@@ -107,30 +137,12 @@ export function createFormDataPayload(req: RequestWithFiles): FormData {
     });
   }
 
-  // Add files
-  if (req.files && Array.isArray(req.files)) {
-    req.files.forEach(file => {
-      bodyFormData.append(file.fieldname, file.buffer, {
-        contentType: file.mimetype,
-        filename: file.originalname,
-      });
+  getRequestFiles(req).forEach(file => {
+    bodyFormData.append(file.fieldname, file.buffer, {
+      contentType: file.mimetype,
+      filename: file.originalname,
     });
-  } else if (req.files && !Array.isArray(req.files)) {
-    // multer.fields() produces { [fieldname]: FileUpload[] }
-    Object.values(req.files)
-      .flat()
-      .forEach(file => {
-        bodyFormData.append(file.fieldname, file.buffer, {
-          contentType: file.mimetype,
-          filename: file.originalname,
-        });
-      });
-  } else if (req.file) {
-    bodyFormData.append(req.file.fieldname, req.file.buffer, {
-      contentType: req.file.mimetype,
-      filename: req.file.originalname,
-    });
-  }
+  });
 
   return bodyFormData;
 }
@@ -143,7 +155,6 @@ export function generateCurlCommand(payload: CurlCommandOptions, req?: RequestWi
 
   let curlCommand = `curl -X ${method} '${url}'`;
 
-  // Add headers (excluding Content-Type for FormData as curl will set it)
   if (headers && Object.keys(headers).length > 0) {
     Object.keys(headers).forEach(key => {
       if (!(data instanceof FormData && key.toLowerCase() === 'content-type')) {
@@ -152,21 +163,16 @@ export function generateCurlCommand(payload: CurlCommandOptions, req?: RequestWi
     });
   }
 
-  // Add data/body
   if (data) {
     if (typeof data === 'string') {
-      // JSON data
       curlCommand += ` -d '${data}'`;
     } else if (data instanceof FormData) {
-      // FormData - generate proper -F flags
       const formFields: string[] = [];
 
-      // Add body fields
       if (req?.body) {
         Object.keys(req.body).forEach(key => {
           const value = req.body[key];
           if (Array.isArray(value)) {
-            // Handle arrays by generating separate -F flags for each value
             value.forEach(v => formFields.push(`-F '${key}=${v}'`));
           } else {
             formFields.push(`-F '${key}=${value}'`);
@@ -174,25 +180,12 @@ export function generateCurlCommand(payload: CurlCommandOptions, req?: RequestWi
         });
       }
 
-      // Add files
-      if (req?.files && Array.isArray(req.files)) {
-        req.files.forEach(file => {
-          formFields.push(`-F '${file.fieldname}=@${file.originalname}'`);
-        });
-      } else if (req?.files && !Array.isArray(req.files)) {
-        // multer.fields() produces { [fieldname]: FileUpload[] }
-        Object.values(req.files)
-          .flat()
-          .forEach(file => {
-            formFields.push(`-F '${file.fieldname}=@${file.originalname}'`);
-          });
-      } else if (req?.file) {
-        formFields.push(`-F '${req.file.fieldname}=@${req.file.originalname}'`);
-      }
+      getRequestFiles(req).forEach(file => {
+        formFields.push(`-F '${file.fieldname}=@${file.originalname}'`);
+      });
 
       curlCommand += ` ${formFields.join(' ')}`;
     } else {
-      // Other data types
       curlCommand += ` -d '<binary-data>'`;
     }
   }
