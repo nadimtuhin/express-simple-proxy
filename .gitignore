@@ -124,4 +124,6 @@ ehthumbs.db
 Thumbs.db
 
 # Husky
-.husky/_
+.husky/_node_modules
+dist
+build
