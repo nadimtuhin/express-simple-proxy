@@ -143,6 +143,11 @@ function buildRequestPayload(
   return payload;
 }
 
+function isJsonContentType(headers: Record<string, string | string[]>): boolean {
+  const ct = headers['content-type'] || headers['Content-Type'] || '';
+  return typeof ct === 'string' && ct.includes('application/json');
+}
+
 async function dispatchUpstreamResponse(
   handler: ResponseHandler | boolean | undefined,
   req: RequestWithLocals,
@@ -155,7 +160,11 @@ async function dispatchUpstreamResponse(
     if (config.responseHeaders) {
       res.set(config.responseHeaders(remoteResponse));
     }
-    res.json(remoteResponse.data);
+    if (isJsonContentType(remoteResponse.headers as Record<string, string>)) {
+      res.json(remoteResponse.data);
+    } else {
+      res.send(remoteResponse.data);
+    }
   } else if (typeof handler === 'function') {
     await handler(req, res, remoteResponse);
   } else {
