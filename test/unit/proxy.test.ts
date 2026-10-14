@@ -839,5 +839,40 @@ describe('Proxy', () => {
 
       expect(onResponse.mock.calls[0][0].source).toBe('hook');
     });
+
+    describe('in development mode', () => {
+      const original = process.env.NODE_ENV;
+      afterEach(() => {
+        process.env.NODE_ENV = original;
+      });
+
+      it('does not log credentials or the request body', async () => {
+        process.env.NODE_ENV = 'development';
+        nock('http://example.com').post('/users').reply(200, {});
+        const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+        const req = makeReq();
+        req.method = 'POST';
+        req.body = { password: 'hunter2' };
+        const controller = createProxyController({
+          baseURL: 'http://example.com',
+          headers: () => ({
+            Authorization: 'Bearer secret-token',
+            Cookie: 'sid=abc',
+            'x-api-key': 'key-123',
+            'X-Trace': 'visible',
+          }),
+        });
+
+        await controller()(req, makeRes(), jest.fn());
+
+        const logged = log.mock.calls.map(c => c.join(' ')).join('\n');
+        log.mockRestore();
+        expect(logged).toContain('X-Trace: visible');
+        expect(logged).not.toContain('secret-token');
+        expect(logged).not.toContain('sid=abc');
+        expect(logged).not.toContain('key-123');
+        expect(logged).not.toContain('hunter2');
+      });
+    });
   });
 });

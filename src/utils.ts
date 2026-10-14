@@ -147,6 +147,20 @@ export function createFormDataPayload(req: RequestWithFiles): FormData {
   return bodyFormData;
 }
 
+const SENSITIVE_HEADER = /authorization|cookie|api[-_]?key|token|secret/i;
+
+/**
+ * Mask header values that carry credentials so the headers are safe to log
+ */
+export function redactHeaders(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [
+      key,
+      SENSITIVE_HEADER.test(key) ? '[REDACTED]' : value,
+    ])
+  );
+}
+
 /**
  * Generate curl command for logging/debugging
  */

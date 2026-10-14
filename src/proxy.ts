@@ -18,6 +18,7 @@ import {
   buildQueryString,
   createFormDataPayload,
   generateCurlCommand,
+  redactHeaders,
   asyncWrapper,
   parseSize,
   resolveProxyPath,
@@ -235,7 +236,14 @@ export function createProxyController(config: ProxyConfig): ProxyController {
 
         if (process.env.NODE_ENV === 'development') {
           // eslint-disable-next-line no-console
-          console.log('🔄 Proxy Request:', generateCurlCommand(payload, reqWithFiles));
+          console.log(
+            '🔄 Proxy Request:',
+            generateCurlCommand({
+              url: payload.url,
+              method: payload.method,
+              headers: redactHeaders(payload.headers),
+            })
+          );
         }
 
         if (beforeRequest) {
