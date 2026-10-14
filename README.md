@@ -46,7 +46,8 @@ import { createProxyController } from 'express-simple-proxy';
 const app = express();
 
 const proxy = createProxyController({
-  baseURL: 'https://api.example.com'
+  baseURL: 'https://api.example.com',
+  headers: () => ({}) // required; return {} when no extra headers are needed
 });
 
 // Direct path mapping - no configuration needed
@@ -60,7 +61,7 @@ app.get('/users/:id', proxy());
 const proxy = createProxyController({
   baseURL: 'https://api.example.com',
   headers: (req) => ({
-    'Authorization': `Bearer ${req.headers.authorization}`,
+    'Authorization': req.headers.authorization ?? '',
     'User-Agent': 'MyApp/1.0'
   })
 });
