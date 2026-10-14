@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `ProxyStats.source` can now be `'hook'`, reported when a request fails before reaching upstream (for example a throwing `beforeRequest` hook or `headers()`)
+
+### Fixed
+- Development-mode request logging redacts credential headers and query parameters and no longer prints the request body
+- Errors thrown while building the request payload now go through the error handler
+
 ## [1.1.3] - 2026-05-20
 
 ### Fixed
