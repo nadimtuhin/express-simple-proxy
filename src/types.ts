@@ -23,7 +23,7 @@ export interface ProxyStats {
   status: number;
   durationMs: number;
   responseSizeBytes?: number;
-  source: 'upstream' | 'short-circuit';
+  source: 'upstream' | 'short-circuit' | 'hook';
 }
 
 export type BeforeRequestHook = (

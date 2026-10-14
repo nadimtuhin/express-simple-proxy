@@ -823,5 +823,21 @@ describe('Proxy', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(onResponse).toHaveBeenCalledTimes(1);
     });
+
+    it('attributes a throwing beforeRequest hook to the hook, not upstream', async () => {
+      const onResponse = jest.fn();
+      const controller = createProxyController({
+        baseURL: 'http://example.com',
+        headers: () => ({}),
+        beforeRequest: () => {
+          throw new Error('hook boom');
+        },
+        onResponse,
+      });
+
+      await controller()(makeReq(), makeRes(), jest.fn());
+
+      expect(onResponse.mock.calls[0][0].source).toBe('hook');
+    });
   });
 });

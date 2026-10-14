@@ -228,6 +228,7 @@ export function createProxyController(config: ProxyConfig): ProxyController {
       };
 
       let payload: ProxyRequestPayload | undefined;
+      let failureSource: ProxyStats['source'] = 'hook';
 
       try {
         payload = buildRequestPayload(config, req, reqWithFiles, proxyPath);
@@ -256,6 +257,7 @@ export function createProxyController(config: ProxyConfig): ProxyController {
           }
         }
 
+        failureSource = 'upstream';
         const remoteResponse = await axiosProxyRequest(payload);
         await dispatchUpstreamResponse(handler, req, res, remoteResponse, config);
 
@@ -284,7 +286,7 @@ export function createProxyController(config: ProxyConfig): ProxyController {
           method: payload?.method ?? req.method,
           status: processedError.status ?? 500,
           durationMs: Date.now() - startedAt,
-          source: 'upstream',
+          source: failureSource,
         });
       }
     });
