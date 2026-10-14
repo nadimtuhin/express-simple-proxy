@@ -147,6 +147,29 @@ export function createFormDataPayload(req: RequestWithFiles): FormData {
   return bodyFormData;
 }
 
+const SENSITIVE_NAME = /auth|key|token|secret|pass|session|cookie/i;
+
+/**
+ * Mask header values that carry credentials so the headers are safe to log
+ */
+export function redactHeaders(headers: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(headers).map(([key, value]) => [
+      key,
+      SENSITIVE_NAME.test(key) ? '[REDACTED]' : value,
+    ])
+  );
+}
+
+/**
+ * Mask query-string values whose parameter names look like credentials
+ */
+export function redactUrl(url: string): string {
+  return url.replace(/([?&])([^=&#]+)=([^&#]*)/g, (match, sep, name) =>
+    SENSITIVE_NAME.test(name) ? `${sep}${name}=[REDACTED]` : match
+  );
+}
+
 /**
  * Generate curl command for logging/debugging
  */

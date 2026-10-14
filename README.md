@@ -46,7 +46,8 @@ import { createProxyController } from 'express-simple-proxy';
 const app = express();
 
 const proxy = createProxyController({
-  baseURL: 'https://api.example.com'
+  baseURL: 'https://api.example.com',
+  headers: () => ({}) // required; return {} when no extra headers are needed
 });
 
 // Direct path mapping - no configuration needed
@@ -60,7 +61,7 @@ app.get('/users/:id', proxy());
 const proxy = createProxyController({
   baseURL: 'https://api.example.com',
   headers: (req) => ({
-    'Authorization': `Bearer ${req.headers.authorization}`,
+    'Authorization': req.headers.authorization ?? '',
     'User-Agent': 'MyApp/1.0'
   })
 });
@@ -436,7 +437,7 @@ const proxy = createProxyController({
       status: stats.status,
       durationMs: stats.durationMs,
       responseSizeBytes: stats.responseSizeBytes, // from content-length header
-      source: stats.source, // 'upstream' | 'short-circuit'
+      source: stats.source, // 'upstream' | 'short-circuit' | 'hook'
     });
   },
 });
@@ -548,7 +549,7 @@ Passed to the `onResponse` callback on every terminal path.
 | `status` | `number` | ✅ | HTTP status code that was sent to the client |
 | `durationMs` | `number` | ✅ | Wall-clock time from request start to terminal path (ms) |
 | `responseSizeBytes` | `number` | ❌ | Parsed `content-length` from upstream response; omitted when header absent |
-| `source` | `'upstream' \| 'short-circuit'` | ✅ | `'upstream'` for real HTTP calls; `'short-circuit'` when `beforeRequest` short-circuited |
+| `source` | `'upstream' \| 'short-circuit' \| 'hook'` | ✅ | `'upstream'` for real HTTP calls; `'short-circuit'` when `beforeRequest` short-circuited; `'hook'` when the request failed before reaching upstream (e.g. `beforeRequest` threw) |
 
 #### `ShortCircuitResponse`
 

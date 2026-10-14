@@ -4,6 +4,8 @@ import {
   buildQueryString,
   createFormDataPayload,
   generateCurlCommand,
+  redactHeaders,
+  redactUrl,
   asyncWrapper,
   parseSize,
   resolveProxyPath,
@@ -297,6 +299,47 @@ describe('Utils', () => {
       const serialised = formData.getBuffer().toString();
       expect(serialised).toContain('photo.jpg');
       expect(serialised).toContain('file.pdf');
+    });
+  });
+
+  describe('redactHeaders', () => {
+    it.each([
+      'Authorization',
+      'Cookie',
+      'Set-Cookie',
+      'x-api-key',
+      'X-Auth-Key',
+      'Ocp-Apim-Subscription-Key',
+      'X-Password',
+      'X-Session-Id',
+      'X-Access-Token',
+      'X-Client-Secret',
+    ])('masks %s', name => {
+      expect(redactHeaders({ [name]: 'v' })[name]).toBe('[REDACTED]');
+    });
+
+    it('keeps harmless headers', () => {
+      expect(redactHeaders({ 'X-Trace': 'v', 'Content-Type': 'text/plain' })).toEqual({
+        'X-Trace': 'v',
+        'Content-Type': 'text/plain',
+      });
+    });
+  });
+
+  describe('redactUrl', () => {
+    it('masks sensitive query values and keeps the rest', () => {
+      expect(redactUrl('http://e.com/x?api_key=abc&page=2')).toBe(
+        'http://e.com/x?api_key=[REDACTED]&page=2'
+      );
+    });
+
+    it('masks token, password and key params', () => {
+      const out = redactUrl('http://e.com/x?access_token=a&password=b&subscription-key=c');
+      expect(out).not.toMatch(/=[abc](&|$)/);
+    });
+
+    it('returns urls without a query unchanged', () => {
+      expect(redactUrl('http://e.com/x')).toBe('http://e.com/x');
     });
   });
 
