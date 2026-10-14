@@ -788,4 +788,40 @@ describe('Proxy', () => {
       expect(jsonArg.error.code).toBe('UPSTREAM_AUTH');
     });
   });
+
+  describe('failure attribution and dev logging', () => {
+    const makeReq = () =>
+      ({
+        method: 'GET',
+        path: '/users',
+        query: {},
+        params: {},
+        body: {},
+        is: jest.fn(),
+        locals: {},
+      }) as any;
+    const makeRes = () =>
+      ({
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+      }) as unknown as Response;
+
+    it('routes a throwing headers() through the error handler', async () => {
+      const onResponse = jest.fn();
+      const res = makeRes();
+      const controller = createProxyController({
+        baseURL: 'http://example.com',
+        headers: () => {
+          throw new Error('header boom');
+        },
+        onResponse,
+      });
+
+      await controller()(makeReq(), res, jest.fn());
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(onResponse).toHaveBeenCalledTimes(1);
+    });
+  });
 });

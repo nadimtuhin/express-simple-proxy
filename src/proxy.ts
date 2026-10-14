@@ -227,9 +227,11 @@ export function createProxyController(config: ProxyConfig): ProxyController {
         }
       };
 
-      const payload = buildRequestPayload(config, req, reqWithFiles, proxyPath);
+      let payload: ProxyRequestPayload | undefined;
 
       try {
+        payload = buildRequestPayload(config, req, reqWithFiles, proxyPath);
+
         if (process.env.NODE_ENV === 'development') {
           // eslint-disable-next-line no-console
           console.log('🔄 Proxy Request:', generateCurlCommand(payload, reqWithFiles));
@@ -278,8 +280,8 @@ export function createProxyController(config: ProxyConfig): ProxyController {
           errorHandler
         );
         await fireStats({
-          url: payload.url,
-          method: payload.method,
+          url: payload?.url ?? req.path,
+          method: payload?.method ?? req.method,
           status: processedError.status ?? 500,
           durationMs: Date.now() - startedAt,
           source: 'upstream',
