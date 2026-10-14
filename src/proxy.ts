@@ -19,6 +19,7 @@ import {
   createFormDataPayload,
   generateCurlCommand,
   redactHeaders,
+  redactUrl,
   asyncWrapper,
   parseSize,
   resolveProxyPath,
@@ -239,7 +240,7 @@ export function createProxyController(config: ProxyConfig): ProxyController {
           console.log(
             '🔄 Proxy Request:',
             generateCurlCommand({
-              url: payload.url,
+              url: redactUrl(payload.url),
               method: payload.method,
               headers: redactHeaders(payload.headers),
             })

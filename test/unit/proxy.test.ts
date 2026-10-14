@@ -848,11 +848,12 @@ describe('Proxy', () => {
 
       it('does not log credentials or the request body', async () => {
         process.env.NODE_ENV = 'development';
-        nock('http://example.com').post('/users').reply(200, {});
+        nock('http://example.com').post('/users').query(true).reply(200, {});
         const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
         const req = makeReq();
         req.method = 'POST';
         req.body = { password: 'hunter2' };
+        req.query = { api_key: 'qs-secret', page: '2' };
         const controller = createProxyController({
           baseURL: 'http://example.com',
           headers: () => ({
@@ -872,6 +873,8 @@ describe('Proxy', () => {
         expect(logged).not.toContain('sid=abc');
         expect(logged).not.toContain('key-123');
         expect(logged).not.toContain('hunter2');
+        expect(logged).not.toContain('qs-secret');
+        expect(logged).toContain('page=2');
       });
     });
   });
