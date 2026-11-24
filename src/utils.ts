@@ -2,6 +2,7 @@ import { URLSearchParams } from 'url';
 import FormData from 'form-data';
 import { Response, NextFunction } from 'express';
 import {
+  ProxyError,
   UrlVariables,
   RequestWithFiles,
   RequestWithLocals,
@@ -29,10 +30,35 @@ export function resolveProxyPath(
   reqPath: string,
   params: Record<string, string>
 ): string {
-  if (proxyPath) {
-    return replaceUrlTemplate(proxyPath, params);
+  const resolved = proxyPath ? replaceUrlTemplate(proxyPath, params) : reqPath;
+  assertNoDotSegments(resolved);
+  return resolved;
+}
+
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
   }
-  return reqPath;
+}
+
+/**
+ * Reject "." and ".." path segments, raw or percent-encoded. The WHATWG URL parser resolves
+ * them (including "%2e%2e"), so they would move the upstream request outside baseURL's path.
+ */
+export function assertNoDotSegments(path: string): void {
+  const pathOnly = path.split('?')[0] as string;
+  const hasDotSegment = pathOnly.split(/[/\\]/).some(segment => {
+    const decoded = safeDecode(segment);
+    return decoded === '.' || decoded === '..';
+  });
+  if (hasDotSegment) {
+    const error: ProxyError = new Error('Invalid path: "." and ".." segments are not allowed');
+    error.status = 400;
+    error.code = 'INVALID_PATH';
+    throw error;
+  }
 }
 
 /**

@@ -48,6 +48,9 @@ export async function axiosProxyRequest(payload: ProxyRequestPayload): Promise<P
       timeout: payload.timeout,
       maxContentLength: MAX_REQUEST_SIZE,
       maxBodyLength: MAX_REQUEST_SIZE,
+      // Following redirects server-side would let an upstream (or an open redirect on it) point the
+      // proxy at any host, including internal ones. Pass the 3xx and its Location back instead.
+      maxRedirects: 0,
       ...(payload.data ? { data: payload.data } : {}),
     };
 
@@ -115,6 +118,75 @@ function validateConfig(config: ProxyConfig): void {
   }
 }
 
+// Hop-by-hop headers (RFC 7230 §6.1) belong to the client connection, and Content-Length is
+// recomputed for the body actually sent, so none of these may be copied to the upstream request.
+const HOP_BY_HOP_REQUEST_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'content-length',
+]);
+
+/**
+ * Remove hop-by-hop headers, headers named in Connection, Content-Length, and a Host header
+ * copied from the client request (it names the proxy, not the upstream).
+ */
+export function sanitizeUpstreamRequestHeaders(
+  headers: Record<string, string>,
+  clientHost: string | undefined
+): Record<string, string> {
+  const dropped = new Set(HOP_BY_HOP_REQUEST_HEADERS);
+  Object.entries(headers).forEach(([name, value]) => {
+    if (name.toLowerCase() === 'connection' && typeof value === 'string') {
+      value.split(',').forEach(token => dropped.add(token.trim().toLowerCase()));
+    }
+  });
+  return Object.fromEntries(
+    Object.entries(headers).filter(([name, value]) => {
+      const lower = name.toLowerCase();
+      if (dropped.has(lower)) {
+        return false;
+      }
+      return !(lower === 'host' && clientHost !== undefined && value === clientHost);
+    })
+  );
+}
+
+function findHeader(headers: Record<string, string>, name: string): string | undefined {
+  const key = Object.keys(headers).find(k => k.toLowerCase() === name);
+  return key === undefined ? undefined : headers[key];
+}
+
+/**
+ * True when the client sent a body that no body parser has read, so it is still on the stream.
+ */
+function hasUnreadBody(req: RequestWithLocals): boolean {
+  const stream = req as unknown as {
+    _body?: boolean;
+    readable?: boolean;
+    readableEnded?: boolean;
+    pipe?: unknown;
+    headers?: Record<string, string | string[] | undefined>;
+  };
+  if (
+    stream._body ||
+    typeof stream.pipe !== 'function' ||
+    !stream.readable ||
+    stream.readableEnded
+  ) {
+    return false;
+  }
+  const headers = stream.headers ?? {};
+  const length = headers['content-length'];
+  return headers['transfer-encoding'] !== undefined || (length !== undefined && length !== '0');
+}
+
 function buildRequestPayload(
   config: ProxyConfig,
   req: RequestWithLocals,
@@ -123,9 +195,10 @@ function buildRequestPayload(
 ): ProxyRequestPayload {
   const qs = buildQueryString(req.query);
   const modifiedProxyPath = resolveProxyPath(proxyPath, req.path, req.params);
+  const clientHost = (req.headers as Record<string, string | undefined> | undefined)?.host;
   const payload: ProxyRequestPayload = {
     url: urlJoin(config.baseURL, modifiedProxyPath, qs),
-    headers: { ...config.headers(req) },
+    headers: sanitizeUpstreamRequestHeaders({ ...config.headers(req) }, clientHost),
     method: req.method,
     timeout: config.timeout || DEFAULT_TIMEOUT,
   };
@@ -135,9 +208,20 @@ function buildRequestPayload(
       const bodyFormData = createFormDataPayload(reqWithFiles);
       payload.data = bodyFormData;
       Object.assign(payload.headers, bodyFormData.getHeaders());
+    } else if (hasUnreadBody(req)) {
+      // No body parser consumed this body (none installed, or its type did not match):
+      // stream it through unchanged rather than sending an empty "{}".
+      payload.data = req;
+      const incoming = req.headers as Record<string, string | undefined>;
+      if (findHeader(payload.headers, 'content-type') === undefined && incoming['content-type']) {
+        payload.headers['Content-Type'] = incoming['content-type'];
+      }
+      if (incoming['content-length'] !== undefined && incoming['transfer-encoding'] === undefined) {
+        payload.headers['Content-Length'] = incoming['content-length'];
+      }
     } else {
       payload.data = JSON.stringify(req.body);
-      if (!payload.headers['Content-Type']) {
+      if (findHeader(payload.headers, 'content-type') === undefined) {
         payload.headers['Content-Type'] = 'application/json';
       }
     }

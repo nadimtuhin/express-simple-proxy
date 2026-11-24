@@ -8,6 +8,7 @@ export type ProxyErrorCode =
   | 'NETWORK_ERROR'
   | 'UPSTREAM_AUTH'
   | 'REQUEST_ERROR'
+  | 'INVALID_PATH'
   | 'UNKNOWN_ERROR';
 
 export interface ShortCircuitResponse {

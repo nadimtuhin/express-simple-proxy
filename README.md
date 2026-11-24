@@ -476,6 +476,12 @@ errorHandler: (error, req, res) => {
 1. **Response Errors (4xx/5xx)**: Server responded with error status
 2. **Network Errors (503)**: No response received (timeout, connection refused)
 3. **Request Setup Errors (500)**: Invalid configuration or malformed data
+4. **Invalid Path (400)**: The upstream path has a `.` or `..` segment, so it could escape `baseURL`'s path
+5. **Redirects (3xx)**: Upstream redirects are not followed; the status and `Location` header go back to the client through the error handler
+
+### Request Forwarding Notes
+- Hop-by-hop headers, `Content-Length`, and a `Host` copied from the client request are removed from what `headers()` returns, so spreading `req.headers` is safe.
+- If no body parser read the request body (none installed, or its content type did not match), the raw body is streamed to the upstream with its original `Content-Type`.
 
 ### Error Handler Flow
 1. **Error Occurs** → 2. **Error Hook Processing** → 3. **Error Handling** → 4. **Fallback**
@@ -573,6 +579,7 @@ Granular error codes set on `error.code`:
 | `UPSTREAM_AUTH` | Upstream returned 401 or 403 |
 | `NETWORK_ERROR` | Other network-level failure (no response received) |
 | `REQUEST_ERROR` | Axios request setup failed |
+| `INVALID_PATH` | The upstream path contained a `.` or `..` segment (raw or percent-encoded); responds 400 without calling the upstream |
 | `UNKNOWN_ERROR` | Unclassified error |
 
 ### Utility Functions

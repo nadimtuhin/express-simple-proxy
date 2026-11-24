@@ -1,6 +1,11 @@
 import nock from 'nock';
 import { Response } from 'express';
-import { axiosProxyRequest, createProxyController, defaultErrorHandler } from '../../src/proxy';
+import {
+  axiosProxyRequest,
+  createProxyController,
+  defaultErrorHandler,
+  sanitizeUpstreamRequestHeaders,
+} from '../../src/proxy';
 import { ProxyConfig, ProxyError, RequestWithFiles } from '../../src/types';
 
 describe('Proxy', () => {
@@ -876,6 +881,32 @@ describe('Proxy', () => {
         expect(logged).not.toContain('qs-secret');
         expect(logged).toContain('page=2');
       });
+    });
+  });
+});
+
+describe('sanitizeUpstreamRequestHeaders', () => {
+  it('drops hop-by-hop headers, Content-Length and headers named in Connection', () => {
+    const result = sanitizeUpstreamRequestHeaders(
+      {
+        Connection: 'keep-alive, X-Hop',
+        'X-Hop': '1',
+        'Keep-Alive': 'timeout=5',
+        'Transfer-Encoding': 'chunked',
+        'Content-Length': '99',
+        Upgrade: 'websocket',
+        'Proxy-Authorization': 'Basic abc',
+        Authorization: 'Bearer t',
+      },
+      undefined
+    );
+    expect(result).toEqual({ Authorization: 'Bearer t' });
+  });
+
+  it('drops Host only when it was copied from the client request', () => {
+    expect(sanitizeUpstreamRequestHeaders({ host: 'proxy.local' }, 'proxy.local')).toEqual({});
+    expect(sanitizeUpstreamRequestHeaders({ Host: 'api.internal' }, 'proxy.local')).toEqual({
+      Host: 'api.internal',
     });
   });
 });

@@ -53,6 +53,27 @@ describe('resolveProxyPath', () => {
       resolveProxyPath('/orgs/:org/repos/:repo', '/ignored', { org: 'acme', repo: 'widget' })
     ).toBe('/orgs/acme/repos/widget');
   });
+
+  it.each([
+    ['/users/:id/profile', '/ignored', { id: '..' }],
+    ['/users/:id', '/ignored', { id: '.' }],
+    [undefined, '/a/%2e%2E/b', {}],
+    [undefined, '/a/../b', {}],
+    [undefined, '/a/..\\b', {}],
+  ])(
+    'rejects dot segments (%s, %s) with a 400 INVALID_PATH error',
+    (proxyPath, reqPath, params) => {
+      expect(() => resolveProxyPath(proxyPath, reqPath, params)).toThrow(
+        expect.objectContaining({ status: 400, code: 'INVALID_PATH' })
+      );
+    }
+  );
+
+  it('allows dots inside a segment and encoded slashes next to dots', () => {
+    expect(resolveProxyPath('/files/:name', '/x', { name: 'a..b' })).toBe('/files/a..b');
+    expect(resolveProxyPath('/files/:name', '/x', { name: '../etc' })).toBe('/files/..%2Fetc');
+    expect(resolveProxyPath(undefined, '/.well-known/x', {})).toBe('/.well-known/x');
+  });
 });
 
 describe('Utils', () => {
