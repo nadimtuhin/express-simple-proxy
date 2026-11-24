@@ -254,13 +254,16 @@ describe('filterProxyResponseHeaders', () => {
     expect(filterProxyResponseHeaders({})).toEqual({});
   });
 
-  it('passes through all non-content-length headers unchanged', () => {
+  it('drops content-type and hop-by-hop headers, keeps end-to-end ones', () => {
     const headers = {
-      'content-type': 'application/json',
+      'Content-Type': 'text/html',
       'x-request-id': 'abc',
-      'transfer-encoding': 'chunked',
+      'Transfer-Encoding': 'chunked',
+      connection: 'keep-alive',
+      'keep-alive': 'timeout=5',
+      'cache-control': 'no-store',
     };
     const result = filterProxyResponseHeaders(headers);
-    expect(result).toEqual(headers);
+    expect(result).toEqual({ 'x-request-id': 'abc', 'cache-control': 'no-store' });
   });
 });

@@ -638,7 +638,7 @@ if (isShortCircuitResponse(hookResult)) {
 const body = buildErrorResponseBody(error);
 // → { error: { message, code, details? } }
 
-// Drop content-length from a headers map (safe to forward)
+// Drop content-length, content-type and hop-by-hop headers (safe to copy onto a JSON error response)
 const safe = filterProxyResponseHeaders(response.headers);
 ```
 
