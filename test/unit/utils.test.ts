@@ -106,6 +106,16 @@ describe('Utils', () => {
       const variables = {};
       expect(replaceUrlTemplate(url, variables)).toBe('/users/profile');
     });
+
+    it('should percent-encode values so they stay in one path segment', () => {
+      const variables = { id: '../admin?x=1#y' };
+      expect(replaceUrlTemplate('/users/:id', variables)).toBe('/users/..%2Fadmin%3Fx%3D1%23y');
+    });
+
+    it('should not replace a placeholder that is a prefix of a longer one', () => {
+      const variables = { id: '1', idType: 'uuid' };
+      expect(replaceUrlTemplate('/users/:idType/:id', variables)).toBe('/users/uuid/1');
+    });
   });
 
   describe('buildQueryString', () => {
@@ -129,6 +139,19 @@ describe('Utils', () => {
       const query = { page: '1', limit: undefined, sort: undefined, active: 'true' };
       const result = buildQueryString(query);
       expect(result).toBe('?page=1&active=true');
+    });
+
+    it('should write nested objects in bracket notation', () => {
+      const query = { filter: { name: 'ann', tags: ['a', 'b'] }, page: '2' };
+      const result = buildQueryString(query);
+      expect(decodeURIComponent(result)).toBe(
+        '?filter[name]=ann&filter[tags]=a&filter[tags]=b&page=2'
+      );
+    });
+
+    it('should index arrays of objects', () => {
+      const query = { items: [{ id: '1' }, { id: '2' }] };
+      expect(decodeURIComponent(buildQueryString(query))).toBe('?items[0][id]=1&items[1][id]=2');
     });
 
     it('should handle boolean values', () => {
