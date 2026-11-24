@@ -2,6 +2,7 @@ import { URLSearchParams } from 'url';
 import FormData from 'form-data';
 import { Response, NextFunction } from 'express';
 import {
+  ProxyError,
   UrlVariables,
   RequestWithFiles,
   RequestWithLocals,
@@ -29,10 +30,35 @@ export function resolveProxyPath(
   reqPath: string,
   params: Record<string, string>
 ): string {
-  if (proxyPath) {
-    return replaceUrlTemplate(proxyPath, params);
+  const resolved = proxyPath ? replaceUrlTemplate(proxyPath, params) : reqPath;
+  assertNoDotSegments(resolved);
+  return resolved;
+}
+
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
   }
-  return reqPath;
+}
+
+/**
+ * Reject "." and ".." path segments, raw or percent-encoded. The WHATWG URL parser resolves
+ * them (including "%2e%2e"), so they would move the upstream request outside baseURL's path.
+ */
+export function assertNoDotSegments(path: string): void {
+  const pathOnly = path.split('?')[0] as string;
+  const hasDotSegment = pathOnly.split(/[/\\]/).some(segment => {
+    const decoded = safeDecode(segment);
+    return decoded === '.' || decoded === '..';
+  });
+  if (hasDotSegment) {
+    const error: ProxyError = new Error('Invalid path: "." and ".." segments are not allowed');
+    error.status = 400;
+    error.code = 'INVALID_PATH';
+    throw error;
+  }
 }
 
 /**
@@ -66,39 +92,49 @@ export function urlJoin(...parts: string[]): string {
 }
 
 /**
- * Replace URL template placeholders with actual values
+ * Replace URL template placeholders with actual values.
+ * Values are percent-encoded so a decoded param such as "../admin" stays one path segment.
  */
 export function replaceUrlTemplate(url: string, urlVariables: UrlVariables): string {
   const placeholders = Object.keys(urlVariables);
   let result = url;
 
   placeholders.forEach(placeholder => {
-    const pattern = new RegExp(`:${placeholder}`, 'g');
-    result = result.replace(pattern, String(urlVariables[placeholder]));
+    const pattern = new RegExp(`:${placeholder}(?![A-Za-z0-9_])`, 'g');
+    const value = encodeURIComponent(String(urlVariables[placeholder]));
+    result = result.replace(pattern, value);
   });
 
   return result;
 }
 
+function appendQueryValue(params: URLSearchParams, key: string, value: unknown): void {
+  if (value === undefined || value === null) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((v, i) =>
+      appendQueryValue(params, typeof v === 'object' && v !== null ? `${key}[${i}]` : key, v)
+    );
+  } else if (typeof value === 'object') {
+    Object.entries(value).forEach(([k, v]) => appendQueryValue(params, `${key}[${k}]`, v));
+  } else {
+    params.append(key, String(value));
+  }
+}
+
 /**
- * Build query string from object with proper encoding
+ * Build query string from object with proper encoding.
+ * Nested objects from Express's extended query parser are written in bracket notation.
  */
-export function buildQueryString(query: Record<string, string | string[] | undefined>): string {
+export function buildQueryString(query: Record<string, unknown>): string {
   if (!query || Object.keys(query).length === 0) {
     return '';
   }
 
   const params = new URLSearchParams();
 
-  Object.keys(query).forEach(key => {
-    const value = query[key];
-
-    if (Array.isArray(value)) {
-      value.forEach(v => params.append(key, String(v)));
-    } else if (value !== undefined && value !== null) {
-      params.append(key, String(value));
-    }
-  });
+  Object.keys(query).forEach(key => appendQueryValue(params, key, query[key]));
 
   const queryString = params.toString();
   return queryString ? `?${queryString}` : '';

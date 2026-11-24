@@ -59,15 +59,31 @@ export function buildErrorResponseBody(error: ProxyError): {
   };
 }
 
+// The error body is re-serialized as JSON, so the upstream's framing and type no longer apply.
+// Hop-by-hop headers (RFC 7230 §6.1) describe the upstream connection, not this one.
+const DROPPED_ERROR_RESPONSE_HEADERS = new Set([
+  'content-length',
+  'content-type',
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+]);
+
 /**
- * Filter proxy response headers — drop content-length (case-insensitive)
+ * Filter upstream headers before copying them onto an error response (case-insensitive)
  */
 export function filterProxyResponseHeaders(
   headers: Record<string, string>
 ): Record<string, string> {
   return Object.fromEntries(
     Object.entries(headers).filter(
-      ([name, value]) => name.toLowerCase() !== 'content-length' && value !== undefined
+      ([name, value]) =>
+        !DROPPED_ERROR_RESPONSE_HEADERS.has(name.toLowerCase()) && value !== undefined
     )
   );
 }

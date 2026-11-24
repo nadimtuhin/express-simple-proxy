@@ -53,6 +53,27 @@ describe('resolveProxyPath', () => {
       resolveProxyPath('/orgs/:org/repos/:repo', '/ignored', { org: 'acme', repo: 'widget' })
     ).toBe('/orgs/acme/repos/widget');
   });
+
+  it.each([
+    ['/users/:id/profile', '/ignored', { id: '..' }],
+    ['/users/:id', '/ignored', { id: '.' }],
+    [undefined, '/a/%2e%2E/b', {}],
+    [undefined, '/a/../b', {}],
+    [undefined, '/a/..\\b', {}],
+  ])(
+    'rejects dot segments (%s, %s) with a 400 INVALID_PATH error',
+    (proxyPath, reqPath, params) => {
+      expect(() => resolveProxyPath(proxyPath, reqPath, params)).toThrow(
+        expect.objectContaining({ status: 400, code: 'INVALID_PATH' })
+      );
+    }
+  );
+
+  it('allows dots inside a segment and encoded slashes next to dots', () => {
+    expect(resolveProxyPath('/files/:name', '/x', { name: 'a..b' })).toBe('/files/a..b');
+    expect(resolveProxyPath('/files/:name', '/x', { name: '../etc' })).toBe('/files/..%2Fetc');
+    expect(resolveProxyPath(undefined, '/.well-known/x', {})).toBe('/.well-known/x');
+  });
 });
 
 describe('Utils', () => {
@@ -106,6 +127,16 @@ describe('Utils', () => {
       const variables = {};
       expect(replaceUrlTemplate(url, variables)).toBe('/users/profile');
     });
+
+    it('should percent-encode values so they stay in one path segment', () => {
+      const variables = { id: '../admin?x=1#y' };
+      expect(replaceUrlTemplate('/users/:id', variables)).toBe('/users/..%2Fadmin%3Fx%3D1%23y');
+    });
+
+    it('should not replace a placeholder that is a prefix of a longer one', () => {
+      const variables = { id: '1', idType: 'uuid' };
+      expect(replaceUrlTemplate('/users/:idType/:id', variables)).toBe('/users/uuid/1');
+    });
   });
 
   describe('buildQueryString', () => {
@@ -129,6 +160,19 @@ describe('Utils', () => {
       const query = { page: '1', limit: undefined, sort: undefined, active: 'true' };
       const result = buildQueryString(query);
       expect(result).toBe('?page=1&active=true');
+    });
+
+    it('should write nested objects in bracket notation', () => {
+      const query = { filter: { name: 'ann', tags: ['a', 'b'] }, page: '2' };
+      const result = buildQueryString(query);
+      expect(decodeURIComponent(result)).toBe(
+        '?filter[name]=ann&filter[tags]=a&filter[tags]=b&page=2'
+      );
+    });
+
+    it('should index arrays of objects', () => {
+      const query = { items: [{ id: '1' }, { id: '2' }] };
+      expect(decodeURIComponent(buildQueryString(query))).toBe('?items[0][id]=1&items[1][id]=2');
     });
 
     it('should handle boolean values', () => {
