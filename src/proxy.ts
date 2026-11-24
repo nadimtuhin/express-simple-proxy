@@ -216,9 +216,9 @@ function buildRequestPayload(
       if (findHeader(payload.headers, 'content-type') === undefined && incoming['content-type']) {
         payload.headers['Content-Type'] = incoming['content-type'];
       }
-      if (incoming['content-length'] !== undefined && incoming['transfer-encoding'] === undefined) {
-        payload.headers['Content-Length'] = incoming['content-length'];
-      }
+      // Content-Length is deliberately not copied from the client request: it may be stale or
+      // attacker-controlled, and a mismatch with the streamed bytes causes framing/desync
+      // problems upstream. The HTTP client frames the stream itself (chunked encoding).
     } else {
       payload.data = JSON.stringify(req.body);
       if (findHeader(payload.headers, 'content-type') === undefined) {

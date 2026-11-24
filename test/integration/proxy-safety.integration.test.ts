@@ -185,5 +185,27 @@ describe('Proxy safety and request fidelity', () => {
       expect(got.body).toBe('<doc>hi</doc>');
       expect(got.headers['content-type']).toBe('application/xml');
     });
+
+    it('does not forward a stale incoming Content-Length for a streamed body', async () => {
+      const app = express();
+      // Simulate a Content-Length that no longer matches the bytes on the stream
+      // (stale, rewritten by middleware, or attacker-controlled).
+      app.use((req, _res, next) => {
+        req.headers['content-length'] = '999';
+        next();
+      });
+      app.post('/upload', proxyFor()('/upload') as any);
+
+      await request(app).post('/upload').set('Content-Type', 'text/plain').send('abc').expect(200);
+
+      const got = received[0] as Received;
+      expect(got.body).toBe('abc');
+      expect(got.headers['content-length']).not.toBe('999');
+      if (got.headers['content-length'] !== undefined) {
+        expect(got.headers['content-length']).toBe(String(Buffer.byteLength(got.body)));
+      } else {
+        expect(got.headers['transfer-encoding']).toBe('chunked');
+      }
+    });
   });
 });
